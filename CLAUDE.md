@@ -1,0 +1,118 @@
+# CLAUDE.md
+
+Este archivo da contexto a Claude Code sobre el proyecto. Léelo antes de hacer cambios.
+
+## Descripción del proyecto
+
+**Simulador 3D de vuelo de dron** (cuadricóptero) hecho a medida, con fines de **aprendizaje personal**.
+
+El objetivo es aprender a pilotar un dron *antes de comprar uno real* (tipo DJI Mini / Air). Existen simuladores gratuitos (DJI Flight Simulator, Liftoff, Uncrashed, VelociDrone), pero este proyecto busca construir uno propio para:
+
+1. Practicar las habilidades básicas de pilotaje: despegue, hover estable, aterrizaje, giros, orientación invertida ("nose-in"), circuitos y órbitas.
+2. Entender cómo funciona un dron por dentro: física de empuje, controladores PID, modos de vuelo y estabilización.
+3. Aprender desarrollo de gráficos 3D y simulación en tiempo real.
+
+Prioridad: **que la sensación de vuelo se parezca a un dron de consumo real** (estilo DJI) por encima del realismo gráfico.
+
+## Stack tecnológico
+
+- **Lenguaje:** TypeScript (modo `strict`)
+- **Render 3D:** [Three.js](https://threejs.org/)
+- **Build / dev server:** Vite
+- **Física:** modelo propio simplificado de cuadricóptero (sin motor de física externo al inicio). Si se necesitan colisiones complejas, evaluar `cannon-es` o `rapier3d`.
+- **Entrada:** teclado + **Gamepad API** del navegador (mandos Xbox/PS y radios RC por USB como RadioMaster/Jumper en modo joystick).
+- **Tests:** Vitest (especialmente para física y controladores).
+- **Entorno:** desarrollo en WSL2 (Linux); el simulador se abre en el navegador de Windows en `http://localhost:5173`.
+
+## Comandos
+
+```bash
+npm install        # instalar dependencias
+npm run dev        # servidor de desarrollo (Vite)
+npm run build      # build de producción
+npm run test       # tests con Vitest
+npm run lint       # ESLint
+```
+
+> Nota: el proyecto aún no está inicializado. El primer paso es crear el esqueleto con `npm create vite@latest . -- --template vanilla-ts` e instalar `three` y `@types/three`.
+
+## Estructura prevista
+
+```
+src/
+  main.ts              # punto de entrada, bucle principal
+  core/
+    loop.ts            # game loop con paso de física fijo (p. ej. 120–240 Hz)
+    config.ts          # parámetros ajustables (masa, empuje, sensibilidad...)
+  physics/
+    drone.ts           # estado del dron: posición, velocidad, orientación (cuaternión), velocidad angular
+    dynamics.ts        # fuerzas: empuje de motores, gravedad, arrastre, viento
+    environment.ts     # viento, efecto suelo, límites del mundo
+  control/
+    pid.ts             # controlador PID genérico
+    flightController.ts# mezcla de motores y estabilización según modo de vuelo
+    modes.ts           # modos: Cine, Normal, Sport, ATTI, Manual/Acro
+  input/
+    inputManager.ts    # unifica teclado y gamepad en sticks virtuales (-1..1)
+    mapping.ts         # Modo 2 (por defecto) / Modo 1, curvas expo, zonas muertas
+  render/
+    scene.ts           # escena, luces, cielo, terreno
+    droneModel.ts      # modelo 3D del dron y hélices animadas
+    cameras.ts         # cámaras: tercera persona, FPV, vista desde el piloto (línea de visión)
+  ui/
+    hud.ts             # telemetría: altura, velocidad, batería, modo, distancia al home
+    menus.ts
+  training/
+    lessons.ts         # lecciones guiadas y retos
+    scoring.ts
+tests/
+```
+
+## Modelo de vuelo (decisiones clave)
+
+- **Paso de física fijo** desacoplado del render (acumulador de tiempo). Nunca integrar física con el `deltaTime` variable del frame.
+- Orientación con **cuaterniones**, no ángulos de Euler (evita gimbal lock).
+- Sistema de coordenadas de Three.js: **Y hacia arriba**. Documentar cualquier conversión.
+- Unidades del SI: metros, segundos, kilogramos, newtons, radianes internamente (grados solo en la UI).
+- Parámetros iniciales inspirados en un dron tipo DJI Mini (~250 g, velocidad máx. ~16 m/s en Sport).
+
+### Modos de vuelo
+
+| Modo | Comportamiento | Para qué sirve |
+|------|----------------|----------------|
+| **Cine** | Muy suave y lento | Primeros vuelos, tomas de video |
+| **Normal (GPS)** | Auto-nivelado + mantiene posición y altura al soltar los sticks | Modo por defecto, como un DJI |
+| **Sport** | Auto-nivelado, más inclinación y velocidad | Practicar control a alta velocidad |
+| **ATTI** | Auto-nivelado y mantiene altura, pero **deriva con el viento** (sin GPS) | Clave para aprender control real ante fallos de GPS |
+| **Manual / Acro** | Sin auto-nivelado; los sticks controlan velocidad angular | Avanzado / FPV (fase posterior) |
+
+### Controles (Modo 2, estándar en DJI)
+
+- **Stick izquierdo:** vertical = acelerador/altura (throttle), horizontal = giro sobre su eje (yaw).
+- **Stick derecho:** vertical = adelante/atrás (pitch), horizontal = izquierda/derecha (roll).
+- Teclado de respaldo: `W/S` altura, `A/D` yaw, flechas pitch/roll, `Espacio` despegue/aterrizaje automático, `H` volver a casa (RTH), `R` reiniciar.
+
+## Hoja de ruta
+
+1. **MVP:** escena con suelo y cielo, dron como caja/modelo simple, física básica, modo Normal, teclado, cámara en tercera persona.
+2. Soporte de gamepad / radio RC con calibración, expo y zona muerta.
+3. HUD de telemetría y modos Cine / Sport / ATTI.
+4. Viento y ráfagas, efecto suelo, batería que se agota.
+5. Lecciones de entrenamiento: hover en un punto, cuadrado, círculo, ocho, nose-in, aterrizaje de precisión.
+6. Cámaras: FPV y vista desde la posición del piloto (línea de visión, como en la vida real).
+7. Escenarios: parque, ciudad, obstáculos; colisiones y "crash".
+8. Modo Manual/Acro y funciones inteligentes (RTH, órbita, waypoints).
+
+## Convenciones de código
+
+- Código e identificadores en **inglés**; comentarios, documentación y textos de la UI en **español**.
+- Separar estrictamente **física / control / render / input**: la física no debe importar nada de Three.js salvo tipos matemáticos (`Vector3`, `Quaternion`), para poder testearla sin navegador.
+- Todos los parámetros "mágicos" (masa, ganancias PID, velocidades máx.) van en `core/config.ts`, nunca hardcodeados.
+- Funciones pequeñas y puras cuando sea posible; tests unitarios para PID, integración de física y mapeo de entrada.
+- Commits pequeños y descriptivos.
+
+## Notas para Claude
+
+- El usuario está **aprendiendo**: al introducir conceptos de física de drones, PID o gráficos 3D, explica brevemente el *por qué* de las decisiones.
+- Cuando se añada una funcionalidad de pilotaje, relaciónala con cómo se comporta un dron DJI real y qué habilidad ayuda a practicar.
+- Prioriza que el simulador sea jugable en cada paso de la hoja de ruta antes de añadir complejidad.
