@@ -6,13 +6,16 @@
 //         ─▶ inclinación + empuje total ─▶ [P actitud] ─▶ velocidad angular deseada
 //         ─▶ [PID velocidad angular] ─▶ torques ─▶ mezclador ─▶ 4 motores
 //
-// Modo Normal (GPS): el stick pide una VELOCIDAD, no una inclinación. Al soltarlo, el objetivo
-// vuelve a 0 con aceleración limitada (frenado suave) y, ya parado, se fija la posición y la altura.
+// Con GPS (Cine/Normal/Sport): el stick pide una VELOCIDAD, no una inclinación. Al soltarlo, el
+// objetivo vuelve a 0 con aceleración limitada (frenado suave) y, ya parado, se fija la posición.
+// Sin GPS (ATTI): no hay lazo de velocidad. El stick pide directamente una INCLINACIÓN; al soltarlo
+// el dron se nivela, pero nada lo frena salvo el aire: sigue deslizándose.
+// La altura se mantiene en todos los modos (en un DJI la da el barómetro, no el GPS).
 
 import { Matrix4, Quaternion, Vector3 } from 'three';
 import { controlConfig, droneConfig, flightConfig, simConfig, type FlightModeParams } from '../core/config';
 import type { Sticks } from '../core/controlInput';
-import { headingOf, MOTOR_COUNT, type DroneState } from '../physics/drone';
+import { headingOf, MOTOR_COUNT, tiltOf, type DroneState } from '../physics/drone';
 import type { FlightPhase } from './flightState';
 import { mixMotors } from './mixer';
 import { Pid } from './pid';
@@ -37,6 +40,17 @@ const attitudeError = new Quaternion();
 const rateSetpoint = new Vector3();
 const torque = new Vector3();
 const currentUp = new Vector3();
+const attiAccel = new Vector3();
+
+/** Objetivos del último paso, para la gráfica en vivo (null = ese lazo no está activo) */
+export interface ControlTelemetry {
+  /** Altura objetivo sobre el suelo (m) */
+  altitudeSetpoint: number | null;
+  /** Velocidad horizontal objetivo (m/s); null en ATTI, que no tiene lazo de velocidad */
+  horizontalSpeedSetpoint: number | null;
+  /** Inclinación objetivo (rad) */
+  desiredTilt: number;
+}
 
 export class FlightController {
   // En ejes del cuerpo: girar sobre x es pitch (morro arriba/abajo) y sobre z es roll
@@ -57,6 +71,7 @@ export class FlightController {
   /** Orientación objetivo del último paso (para el panel de ajuste y los tests) */
   readonly desiredOrientation = new Quaternion();
   readonly motorCommands = new Array<number>(MOTOR_COUNT).fill(0);
+  readonly telemetry: ControlTelemetry = { altitudeSetpoint: null, horizontalSpeedSetpoint: null, desiredTilt: 0 };
 
   reset(state: DroneState): void {
     for (const pid of [this.pitchRate, this.rollRate, this.yawRate, this.velocityX, this.velocityZ, this.verticalSpeed]) {
@@ -67,6 +82,7 @@ export class FlightController {
     this.holding = false;
     this.altitudeSetpoint = null;
     this.desiredOrientation.copy(state.orientation);
+    Object.assign(this.telemetry, { altitudeSetpoint: null, horizontalSpeedSetpoint: null, desiredTilt: 0 });
   }
 
   update(state: DroneState, phase: FlightPhase, sticks: Sticks, mode: FlightModeParams, dt: number): number[] {
@@ -85,21 +101,35 @@ export class FlightController {
     const yawRateCommand = -pilot.yaw * mode.maxYawRate;
     this.yawSetpoint = wrapAngle(this.yawSetpoint + yawRateCommand * dt);
 
-    // 2. Objetivos de velocidad horizontal y vertical
-    this.updateHorizontalSetpoint(state, pilot, mode, dt);
+    // 2. Vertical: objetivo de velocidad → aceleración deseada (m/s²)
     const verticalSetpoint = this.verticalSetpoint(state, phase, pilot, mode);
+    const ay = this.verticalSpeed.update(verticalSetpoint, state.velocity.y, dt);
 
-    // 3. Lazos de velocidad → aceleración deseada (m/s²). Posado no se inclina.
+    // 3. Horizontal → aceleración deseada (m/s²). Posado no se inclina.
     let ax = 0;
     let az = 0;
-    if (state.onGround) {
+    if (mode.positionHold) {
+      this.updateHorizontalSetpoint(state, pilot, mode, dt);
+      if (state.onGround) {
+        this.velocityX.reset();
+        this.velocityZ.reset();
+      } else {
+        ax = this.velocityX.update(this.velocitySetpoint.x, state.velocity.x, dt);
+        az = this.velocityZ.update(this.velocitySetpoint.z, state.velocity.z, dt);
+      }
+    } else {
+      if (!state.onGround) {
+        this.attiAcceleration(state, pilot, mode);
+        ax = attiAccel.x;
+        az = attiAccel.z;
+      }
+      // Sin GPS no hay punto que mantener. El objetivo de velocidad sigue a la velocidad real
+      // para que, si se vuelve a un modo con GPS, el dron frene desde ahí sin dar un tirón.
+      this.holding = false;
+      this.velocitySetpoint.set(state.velocity.x, 0, state.velocity.z);
       this.velocityX.reset();
       this.velocityZ.reset();
-    } else {
-      ax = this.velocityX.update(this.velocitySetpoint.x, state.velocity.x, dt);
-      az = this.velocityZ.update(this.velocitySetpoint.z, state.velocity.z, dt);
     }
-    const ay = this.verticalSpeed.update(verticalSetpoint, state.velocity.y, dt);
 
     // 4. Aceleración → orientación deseada + empuje total
     const collective = this.attitudeFromAcceleration(state, ax, ay, az, mode);
@@ -115,7 +145,25 @@ export class FlightController {
       inertia.y * this.yawRate.update(rateSetpoint.y, omega.y, dt),
       inertia.z * this.rollRate.update(rateSetpoint.z, omega.z, dt),
     );
+
+    this.telemetry.altitudeSetpoint = this.altitudeSetpoint === null ? null : this.altitudeSetpoint - droneConfig.restHeight;
+    this.telemetry.horizontalSpeedSetpoint = mode.positionHold ? Math.hypot(this.velocitySetpoint.x, this.velocitySetpoint.z) : null;
+    this.telemetry.desiredTilt = tiltOf(this.desiredOrientation);
     return mixMotors(collective, torque, this.motorCommands);
+  }
+
+  /**
+   * ATTI: el stick da directamente la inclinación (a fondo = inclinación máxima del modo).
+   * Inclinarse un ángulo θ acelera g·tan(θ) hacia ese lado, en el marco del rumbo del dron.
+   */
+  private attiAcceleration(state: DroneState, sticks: Sticks, mode: FlightModeParams): void {
+    const g = simConfig.gravity;
+    const forward = g * Math.tan(sticks.pitch * mode.maxTilt);
+    const right = g * Math.tan(sticks.roll * mode.maxTilt);
+    const heading = headingOf(state.orientation);
+    const forwardX = -Math.sin(heading);
+    const forwardZ = -Math.cos(heading);
+    attiAccel.set(forward * forwardX + right * -forwardZ, 0, forward * forwardZ + right * forwardX);
   }
 
   /** Normal (GPS): stick → velocidad en el marco del rumbo; suelto → frenar y mantener posición. */

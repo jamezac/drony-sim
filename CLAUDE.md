@@ -95,7 +95,9 @@ tests/
 
 - **Stick izquierdo:** vertical = acelerador/altura (throttle), horizontal = giro sobre su eje (yaw).
 - **Stick derecho:** vertical = adelante/atrás (pitch), horizontal = izquierda/derecha (roll).
-- Teclado de respaldo: `W/S` altura, `A/D` yaw, flechas pitch/roll, `Espacio` despegue/aterrizaje automático, `H` volver a casa (RTH), `R` reiniciar.
+- Teclado de respaldo: `W/S` altura, `A/D` yaw, flechas pitch/roll, `Espacio` despegue/aterrizaje automático, `E` motores, `1`-`4` modo (Cine/Normal/Sport/ATTI), `G` gráfica de los PID, `` ` `` ajustes, `H` volver a casa (RTH, fase 4), `R` reiniciar.
+- SpaceMouse: botón izquierdo = despegue/aterrizaje, botón derecho = siguiente modo.
+- URL: `?mode=cine|normal|sport|atti`, `?graph=1`, `?demo=hover|sticks` (vuelos automáticos para `npm run check`).
 
 ## Hoja de ruta
 

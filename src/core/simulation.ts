@@ -3,7 +3,7 @@
 
 import { FlightController } from '../control/flightController';
 import { FlightStateMachine, type FlightPhase } from '../control/flightState';
-import { modeParams, type FlightModeName } from '../control/modes';
+import { ModeBlender, modeParams, type FlightModeName } from '../control/modes';
 import { copyDroneState, createDroneState, type DroneState } from '../physics/drone';
 import { stepDynamics } from '../physics/dynamics';
 import { applyGroundContact } from '../physics/environment';
@@ -16,8 +16,24 @@ export class Simulation {
   readonly previous: DroneState = createDroneState();
   readonly controller = new FlightController();
   private flight = new FlightStateMachine();
-  mode: FlightModeName = 'normal';
+  private currentMode: FlightModeName;
+  /** Límites efectivos: pasan de un modo a otro de forma gradual */
+  private readonly blender: ModeBlender;
   time = 0;
+
+  constructor(mode: FlightModeName = 'normal') {
+    this.currentMode = mode;
+    this.blender = new ModeBlender(modeParams(mode));
+  }
+
+  get mode(): FlightModeName {
+    return this.currentMode;
+  }
+
+  /** Cambia de modo en cualquier momento, también en vuelo (los límites cambian suavemente). */
+  setMode(mode: FlightModeName): void {
+    this.currentMode = mode;
+  }
 
   get phase(): FlightPhase {
     return this.flight.phase;
@@ -34,7 +50,8 @@ export class Simulation {
       { sticks: input.sticks, actions: input.actions, onGround: this.state.onGround, altitude: this.altitude },
       dt,
     );
-    const commands = this.controller.update(this.state, phase, input.sticks, modeParams(this.mode), dt);
+    const limits = this.blender.update(modeParams(this.currentMode), dt);
+    const commands = this.controller.update(this.state, phase, input.sticks, limits, dt);
     stepDynamics(this.state, commands, dt);
     applyGroundContact(this.state);
     this.time += dt;
@@ -46,6 +63,7 @@ export class Simulation {
     copyDroneState(this.previous, fresh);
     this.flight = new FlightStateMachine();
     this.controller.reset(this.state);
+    this.blender.snap(modeParams(this.currentMode));
     this.time = 0;
   }
 }

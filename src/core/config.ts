@@ -70,11 +70,19 @@ export const controlConfig = {
 };
 
 // ---------------------------------------------------------------------------
-// Modos de vuelo (fase 1: solo Normal). Valores aproximados de un DJI Mini.
+// Modos de vuelo. Valores aproximados de un DJI Mini.
 // ---------------------------------------------------------------------------
 
+export type FlightModeName = 'cine' | 'normal' | 'sport' | 'atti';
+
 export interface FlightModeParams {
-  maxSpeed: number; // m/s horizontal
+  /**
+   * Con GPS (Cine/Normal/Sport) el stick pide una VELOCIDAD y al soltarlo el dron frena y
+   * mantiene el punto. Sin GPS (ATTI) el stick pide una INCLINACIÓN: al soltarlo se nivela,
+   * pero sigue deslizándose con la inercia (y con el viento, en la fase 4).
+   */
+  positionHold: boolean;
+  maxSpeed: number; // m/s horizontal (en ATTI la limita solo la física)
   maxClimb: number; // m/s
   maxDescent: number; // m/s
   maxTilt: number; // rad
@@ -83,8 +91,40 @@ export interface FlightModeParams {
   maxAccel: number; // m/s²
 }
 
-export const modesConfig: Record<'normal', FlightModeParams> = {
+export const modesConfig: Record<FlightModeName, FlightModeParams> = {
+  // Muy suave y lento: primeros vuelos y tomas de vídeo
+  cine: {
+    positionHold: true,
+    maxSpeed: 6,
+    maxClimb: 1.5,
+    maxDescent: 1.5,
+    maxTilt: 15 * DEG,
+    maxYawRate: 30 * DEG,
+    maxAccel: 2,
+  },
+  // El de por defecto de un DJI
   normal: {
+    positionHold: true,
+    maxSpeed: 10,
+    maxClimb: 3,
+    maxDescent: 3,
+    maxTilt: 25 * DEG,
+    maxYawRate: 60 * DEG,
+    maxAccel: 5,
+  },
+  // Rápido: más inclinación, arranca y frena más fuerte (y tarda más en pararse)
+  sport: {
+    positionHold: true,
+    maxSpeed: 16,
+    maxClimb: 5,
+    maxDescent: 3.5,
+    maxTilt: 35 * DEG,
+    maxYawRate: 130 * DEG,
+    maxAccel: 8,
+  },
+  // Sin GPS: mantiene la altura (barómetro) pero no la posición
+  atti: {
+    positionHold: false,
     maxSpeed: 10,
     maxClimb: 3,
     maxDescent: 3,
@@ -93,6 +133,10 @@ export const modesConfig: Record<'normal', FlightModeParams> = {
     maxAccel: 5,
   },
 };
+
+// Al cambiar de modo, los límites pasan del modo anterior al nuevo de forma gradual (exponencial
+// con esta constante de tiempo). Así, pasar de Sport a Cine a 16 m/s no da un tirón brusco.
+export const modeTransitionSeconds = 0.5;
 
 // ---------------------------------------------------------------------------
 // Fases automáticas (despegue, aterrizaje, armado)
@@ -187,6 +231,7 @@ export const gamepadConfig = {
   buttons: {
     takeoffLand: 0, // A (Xbox) / Cruz (PlayStation)
     toggleMotors: 1, // B (Xbox) / Círculo (PlayStation)
+    modeSwitch: 3, // Y (Xbox) / Triángulo (PlayStation)
   },
 };
 

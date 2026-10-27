@@ -64,9 +64,124 @@ a {
 }
 
 .hud-status {
-  margin: 0 0 10px;
-  color: var(--accent);
+  margin: 0 0 4px;
+  color: var(--muted);
   font-size: 14px;
+}
+
+/* Modo en una "pastilla" de color: se distingue de un vistazo, como en el DJI Fly */
+.hud-mode {
+  padding: 1px 8px;
+  color: var(--bg);
+  font-weight: 600;
+  background: var(--accent);
+  border-radius: 4px;
+}
+
+.hud-mode[data-mode='cine'] {
+  background: #b39ddb;
+}
+
+.hud-mode[data-mode='sport'] {
+  background: #ffb74d;
+}
+
+.hud-mode[data-mode='atti'] {
+  background: var(--bad);
+}
+
+.hud-gps {
+  margin: 0 0 10px;
+  color: var(--ok);
+  font-size: 12px;
+}
+
+.hud-gps-off {
+  color: var(--bad);
+}
+
+.hud-warning {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  max-width: min(520px, calc(100% - 32px));
+  margin: 0;
+  padding: 8px 14px;
+  color: #1a0f0f;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  background: #ffcf5c;
+  border-radius: 8px;
+  transform: translateX(-50%);
+}
+
+/* --- Radar de orientación --- */
+
+.radar {
+  position: absolute;
+  left: 16px;
+  bottom: 44px;
+  width: 182px;
+  padding: 10px 14px 8px;
+  background: rgb(15 20 25 / 75%);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.radar-canvas {
+  display: block;
+  width: 150px;
+  height: 150px;
+  margin: 0 auto;
+}
+
+.radar-label {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.radar-warning {
+  color: #ffcf5c;
+  font-weight: 600;
+}
+
+/* --- Gráfica en vivo (tecla G) --- */
+
+.graph {
+  position: absolute;
+  top: 80px;
+  right: 16px;
+  padding: 10px 12px 6px;
+  background: rgb(15 20 25 / 85%);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.graph canvas {
+  display: block;
+  width: 360px;
+  height: 234px;
+}
+
+.graph-legend {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.graph-key {
+  display: inline-block;
+  width: 16px;
+  height: 0;
+  vertical-align: middle;
+  border-top: 2px solid var(--text);
+}
+
+.graph-key-target {
+  border-top: 2px dashed var(--accent);
 }
 
 .hud-metrics {
@@ -183,8 +298,18 @@ a {
 }
 
 @media (max-width: 640px) {
-  .sticks {
+  .sticks,
+  .radar {
     bottom: 64px;
+  }
+
+  .radar {
+    width: auto;
+  }
+
+  .radar-label,
+  .graph {
+    display: none;
   }
 
   .stick-pad {

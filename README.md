@@ -24,4 +24,4 @@ npm run dev     # abre http://localhost:5173 en Chrome o Edge
 
 ## Estado
 
-🚧 Fase 2 (entrada completa) en curso: visualizador de sticks, ajustes de entrada guardados, calibración del SpaceMouse y soporte de mando en Modo 1/2. El plan completo está en [docs/PLAN.md](docs/PLAN.md).
+🚧 Fase 3 (HUD y modos) en curso: modos Cine/Normal/Sport/ATTI, HUD estilo DJI Fly con radar de orientación y gráfica en vivo de los PID. El plan completo está en [docs/PLAN.md](docs/PLAN.md).
