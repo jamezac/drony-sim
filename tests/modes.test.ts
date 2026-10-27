@@ -48,6 +48,7 @@ describe('límites de cada modo con GPS', () => {
 
   it('Sport: supera los 15 m/s sin pasar de 35°', () => {
     const sim = takenOff('sport');
+    sim.state.position.z = 150; // lejos del límite de distancia (ver el test de cambio de modo)
     const maxTilt = flyForward(sim, 12);
     expect(speed(sim)).toBeGreaterThan(15);
     expect(maxTilt).toBeLessThan(modesConfig.sport.maxTilt + 1 * DEG);
@@ -111,6 +112,8 @@ describe('cambio de modo en vuelo', () => {
 
   it('de Sport a toda velocidad a Cine: la inclinación no se dispara', () => {
     const sim = takenOff('sport');
+    // Empieza 150 m detrás del despegue: así el vuelo recto no llega al límite de distancia
+    sim.state.position.z = 150;
     flyForward(sim, 8);
     sim.setMode('cine');
     let maxTilt = 0;

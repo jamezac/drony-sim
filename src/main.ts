@@ -13,21 +13,28 @@ import { loadInputSettings, SETTINGS_STORAGE_KEY } from './core/settings';
 import { Simulation } from './core/simulation';
 import { modeParams, nextMode, parseModeName } from './control/modes';
 import { headingOf, tiltOf } from './physics/drone';
+import { nextWindLevel, parseWindLevel } from './physics/environment';
 import { parseDemoName } from './input/demoInput';
 import { InputManager } from './input/inputManager';
 import { ChaseCamera } from './render/cameras';
 import { DroneModel } from './render/droneModel';
 import { createWorld } from './render/scene';
+import { Windsock } from './render/windsock';
 import { Hud } from './ui/hud';
 import { StickView } from './ui/stickView';
 import { TelemetryGraph } from './ui/telemetryGraph';
 import { createTuningPanel } from './ui/tuningPanel';
+import { activeWarnings } from './ui/warnings';
 import './style.css';
 
 // Fotogramas a renderizar antes de avisar a `npm run check` de que la página está lista
 const FRAMES_BEFORE_READY = 10;
 // ?demo=sticks mueve los sticks a los 4 s; damos 1,5 s más para que se vea el dron moviéndose
 const STICKS_DEMO_READY_SECONDS = 5.5;
+// ?demo=rth pulsa "volver a casa" a los 8 s; a los 11 ya está subiendo o volviendo
+const RTH_DEMO_READY_SECONDS = 11;
+// Con viento el dron nunca está del todo quieto: se espera a que lleve un rato en hover
+const WINDY_HOVER_READY_SECONDS = 8;
 
 function byId<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
@@ -35,7 +42,8 @@ function byId<T extends HTMLElement>(id: string): T {
   return element as T;
 }
 
-// Parámetros de la URL: ?demo=hover|sticks (vuelo automático), ?mode=cine|normal|sport|atti, ?graph=1
+// Parámetros de la URL: ?demo=hover|sticks|rth (vuelo automático), ?mode=cine|normal|sport|atti,
+// ?wind=calma|moderado|fuerte, ?battery=25 (batería inicial en %), ?graph=1
 const params = new URLSearchParams(window.location.search);
 const demo = parseDemoName(params.get('demo'));
 const RAD_TO_DEG = 180 / Math.PI;
@@ -48,7 +56,14 @@ const hud = new Hud(byId('hud'));
 const stickView = new StickView(byId('hud'));
 const graph = new TelemetryGraph(byId('hud'), params.get('graph') === '1');
 
-const sim = new Simulation(parseModeName(params.get('mode')) ?? 'normal');
+const batteryParam = Number(params.get('battery'));
+const sim = new Simulation({
+  mode: parseModeName(params.get('mode')) ?? 'normal',
+  wind: parseWindLevel(params.get('wind')) ?? undefined,
+  batteryPercent: batteryParam > 0 && batteryParam <= 100 ? batteryParam : 100,
+});
+const windsock = new Windsock();
+world.scene.add(windsock.group);
 const input = new InputManager(loadInputSettings(), demo);
 const loop = new FixedStepLoop(1 / simConfig.physicsHz, simConfig.maxFrameSeconds);
 const tuningPanel = createTuningPanel(input);
@@ -81,7 +96,9 @@ let frames = 0;
 function isReady(): boolean {
   if (frames < FRAMES_BEFORE_READY) return false;
   if (demo === 'sticks') return sim.phase === 'flying' && sim.time > STICKS_DEMO_READY_SECONDS;
+  if (demo === 'rth') return sim.phase === 'returning' && sim.time > RTH_DEMO_READY_SECONDS;
   if (demo !== 'hover') return true;
+  if (sim.wind.meanSpeed > 0) return sim.phase === 'flying' && sim.time > WINDY_HOVER_READY_SECONDS;
   const hovering = sim.phase === 'flying' && sim.state.velocity.length() < 0.05;
   return hovering && Math.abs(sim.altitude - flightConfig.takeoffAltitude) < 0.05;
 }
@@ -98,9 +115,11 @@ world.renderer.setAnimationLoop((timeMs: number) => {
   if (frameInput.modeRequest) {
     sim.setMode(frameInput.modeRequest === 'next' ? nextMode(sim.mode) : frameInput.modeRequest);
   }
+  if (frameInput.cycleWind) sim.setWind(nextWindLevel(sim.wind.level));
   pendingActions = {
     toggleMotors: pendingActions.toggleMotors || frameInput.actions.toggleMotors,
     takeoffLand: pendingActions.takeoffLand || frameInput.actions.takeoffLand,
+    returnHome: pendingActions.returnHome || frameInput.actions.returnHome,
   };
 
   const alpha = loop.advance(frameSeconds, (dt) => {
@@ -114,15 +133,34 @@ world.renderer.setAnimationLoop((timeMs: number) => {
   drone.update(pose, frameSeconds);
   chase.update(pose.position, headingOf(pose.orientation), frameSeconds);
   world.followWithSun(pose.position);
+  windsock.update(sim.wind.velocity, frameSeconds);
 
   const { velocity, position } = sim.state;
   const horizontalSpeed = Math.hypot(velocity.x, velocity.z);
+  const gps = modeParams(sim.mode).positionHold;
+  const distance = Math.hypot(position.x, position.z);
+  const wind = sim.wind.velocity;
   hud.update({
     mode: sim.mode,
-    gps: modeParams(sim.mode).positionHold,
+    gps,
     phase: sim.phase,
+    rthStage: sim.controller.rthStage,
+    batteryPercent: sim.battery.percent,
+    batteryVoltage: sim.battery.voltage,
+    windLevel: sim.wind.level,
+    windX: wind.x,
+    windZ: wind.z,
+    warnings: activeWarnings({
+      batteryPercent: sim.battery.percent,
+      phase: sim.phase,
+      forcedLanding: sim.forcedLanding,
+      gps,
+      altitude: sim.altitude,
+      distance,
+      windSpeed: Math.hypot(wind.x, wind.z),
+    }),
     altitude: sim.altitude,
-    distance: Math.hypot(position.x, position.z),
+    distance,
     horizontalSpeed,
     verticalSpeed: velocity.y,
     x: pose.position.x,

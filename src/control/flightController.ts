@@ -13,12 +13,20 @@
 // La altura se mantiene en todos los modos (en un DJI la da el barómetro, no el GPS).
 
 import { Matrix4, Quaternion, Vector3 } from 'three';
-import { controlConfig, droneConfig, flightConfig, simConfig, type FlightModeParams } from '../core/config';
+import {
+  controlConfig,
+  droneConfig,
+  flightConfig,
+  limitsConfig,
+  simConfig,
+  type FlightModeParams,
+} from '../core/config';
 import type { Sticks } from '../core/controlInput';
 import { headingOf, MOTOR_COUNT, tiltOf, type DroneState } from '../physics/drone';
 import type { FlightPhase } from './flightState';
 import { mixMotors } from './mixer';
 import { Pid } from './pid';
+import { ReturnToHome, type RthStage, type RthTargets } from './rth';
 
 function clamp(value: number, limit: number): number {
   return Math.max(-limit, Math.min(limit, value));
@@ -67,11 +75,23 @@ export class FlightController {
   private readonly holdPosition = new Vector3();
   private holding = false;
   private altitudeSetpoint: number | null = null;
+  private readonly rth = new ReturnToHome();
+  private lastPhase: FlightPhase = 'disarmed';
 
   /** Orientación objetivo del último paso (para el panel de ajuste y los tests) */
   readonly desiredOrientation = new Quaternion();
   readonly motorCommands = new Array<number>(MOTOR_COUNT).fill(0);
   readonly telemetry: ControlTelemetry = { altitudeSetpoint: null, horizontalSpeedSetpoint: null, desiredTilt: 0 };
+
+  /** Etapa del RTH en curso (solo tiene sentido en la fase 'returning') */
+  get rthStage(): RthStage {
+    return this.rth.stage;
+  }
+
+  /** El RTH ha llegado sobre el punto de despegue: toca aterrizar */
+  get rthArrived(): boolean {
+    return this.lastPhase === 'returning' && this.rth.stage === 'arrived';
+  }
 
   reset(state: DroneState): void {
     for (const pid of [this.pitchRate, this.rollRate, this.yawRate, this.velocityX, this.velocityZ, this.verticalSpeed]) {
@@ -86,6 +106,8 @@ export class FlightController {
   }
 
   update(state: DroneState, phase: FlightPhase, sticks: Sticks, mode: FlightModeParams, dt: number): number[] {
+    const startingRth = phase === 'returning' && this.lastPhase !== 'returning';
+    this.lastPhase = phase;
     if (phase === 'disarmed' || phase === 'armed') {
       const idle = phase === 'armed' ? droneConfig.idleThrustFraction * droneConfig.maxThrustPerMotor : 0;
       this.motorCommands.fill(idle);
@@ -94,22 +116,31 @@ export class FlightController {
     }
 
     const flying = phase === 'flying';
-    // En el despegue y el aterrizaje automáticos los sticks no mueven el dron
+    // En las fases automáticas (despegue, RTH, aterrizaje) los sticks no mueven el dron
     const pilot: Sticks = flying ? sticks : { throttle: 0, yaw: 0, pitch: 0, roll: 0 };
+    if (startingRth) this.rth.start(state);
+    const rth = phase === 'returning' ? this.rth.update(state) : null;
 
-    // 1. Rumbo: el stick de yaw gira el objetivo (positivo = horario = rumbo decreciente)
-    const yawRateCommand = -pilot.yaw * mode.maxYawRate;
-    this.yawSetpoint = wrapAngle(this.yawSetpoint + yawRateCommand * dt);
+    // 1. Rumbo: el stick de yaw gira el objetivo (positivo = horario = rumbo decreciente).
+    //    En el RTH, el objetivo gira hacia casa a la velocidad de giro máxima del modo.
+    let yawRateCommand = -pilot.yaw * mode.maxYawRate;
+    if (rth?.heading != null) {
+      const step = clamp(wrapAngle(rth.heading - this.yawSetpoint), mode.maxYawRate * dt);
+      this.yawSetpoint = wrapAngle(this.yawSetpoint + step);
+      yawRateCommand = 0;
+    } else {
+      this.yawSetpoint = wrapAngle(this.yawSetpoint + yawRateCommand * dt);
+    }
 
     // 2. Vertical: objetivo de velocidad → aceleración deseada (m/s²)
-    const verticalSetpoint = this.verticalSetpoint(state, phase, pilot, mode);
+    const verticalSetpoint = this.verticalSetpoint(state, phase, pilot, mode, rth);
     const ay = this.verticalSpeed.update(verticalSetpoint, state.velocity.y, dt);
 
     // 3. Horizontal → aceleración deseada (m/s²). Posado no se inclina.
     let ax = 0;
     let az = 0;
     if (mode.positionHold) {
-      this.updateHorizontalSetpoint(state, pilot, mode, dt);
+      this.updateHorizontalSetpoint(state, pilot, mode, dt, rth);
       if (state.onGround) {
         this.velocityX.reset();
         this.velocityZ.reset();
@@ -167,9 +198,21 @@ export class FlightController {
   }
 
   /** Normal (GPS): stick → velocidad en el marco del rumbo; suelto → frenar y mantener posición. */
-  private updateHorizontalSetpoint(state: DroneState, sticks: Sticks, mode: FlightModeParams, dt: number): void {
+  private updateHorizontalSetpoint(
+    state: DroneState,
+    sticks: Sticks,
+    mode: FlightModeParams,
+    dt: number,
+    rth: RthTargets | null,
+  ): void {
     const { position: positionGains, holdEngageSpeed } = controlConfig;
     const sticksActive = sticks.pitch !== 0 || sticks.roll !== 0;
+
+    if (rth) {
+      this.holding = false;
+      this.slewVelocitySetpoint(rth.velocityX, rth.velocityZ, mode.maxAccel * dt);
+      return;
+    }
 
     if (sticksActive) {
       this.holding = false;
@@ -183,6 +226,21 @@ export class FlightController {
       if (length > mode.maxSpeed) {
         targetX *= mode.maxSpeed / length;
         targetZ *= mode.maxSpeed / length;
+      }
+      // Límite de distancia (como el de DJI): la velocidad hacia fuera se limita para poder
+      // frenar a tiempo, v = √(2·a·d) con la distancia que queda (a la mitad de la aceleración
+      // máxima, porque el lazo de velocidad tarda un poco en responder). Pasado el borde, vuelve.
+      const distance = Math.hypot(state.position.x, state.position.z);
+      if (distance > 1e-6) {
+        const outwardX = state.position.x / distance;
+        const outwardZ = state.position.z / distance;
+        const outward = targetX * outwardX + targetZ * outwardZ;
+        const remaining = limitsConfig.maxDistance - distance;
+        const maxOutward = remaining >= 0 ? Math.sqrt(mode.maxAccel * remaining) : remaining * positionGains.kp;
+        if (outward > maxOutward) {
+          targetX -= outwardX * (outward - maxOutward);
+          targetZ -= outwardZ * (outward - maxOutward);
+        }
       }
       this.slewVelocitySetpoint(targetX, targetZ, mode.maxAccel * dt);
       return;
@@ -222,10 +280,24 @@ export class FlightController {
   }
 
   /** Velocidad vertical objetivo según la fase y el throttle. */
-  private verticalSetpoint(state: DroneState, phase: FlightPhase, sticks: Sticks, mode: FlightModeParams): number {
+  private verticalSetpoint(
+    state: DroneState,
+    phase: FlightPhase,
+    sticks: Sticks,
+    mode: FlightModeParams,
+    rth: RthTargets | null,
+  ): number {
     const { altitude: altitudeGains } = controlConfig;
     const y = state.position.y;
     const altitude = y - droneConfig.restHeight;
+    // Techo de altura (120 m): el dron no sube más aunque se pida
+    const ceiling = droneConfig.restHeight + limitsConfig.maxAltitude;
+
+    if (rth) {
+      this.altitudeSetpoint = Math.min(rth.altitude, ceiling);
+      const speed = (this.altitudeSetpoint - y) * altitudeGains.kp;
+      return Math.max(-mode.maxDescent, Math.min(mode.maxClimb, speed));
+    }
 
     if (phase === 'takingOff') {
       this.altitudeSetpoint = droneConfig.restHeight + flightConfig.takeoffAltitude;
@@ -238,12 +310,14 @@ export class FlightController {
 
     if (sticks.throttle !== 0) {
       this.altitudeSetpoint = null;
-      return sticks.throttle * (sticks.throttle > 0 ? mode.maxClimb : mode.maxDescent);
+      if (sticks.throttle < 0) return sticks.throttle * mode.maxDescent;
+      // Subiendo: frena al acercarse al techo, igual que el P de altura
+      return Math.min(sticks.throttle * mode.maxClimb, (ceiling - y) * altitudeGains.kp);
     }
     // Throttle suelto: primero frena la subida/bajada y después fija la altura
     if (this.altitudeSetpoint === null) {
       if (Math.abs(state.velocity.y) > controlConfig.holdEngageSpeed) return 0;
-      this.altitudeSetpoint = y;
+      this.altitudeSetpoint = Math.min(y, ceiling);
     }
     return clamp((this.altitudeSetpoint - y) * altitudeGains.kp, altitudeGains.maxSpeed);
   }

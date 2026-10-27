@@ -31,6 +31,8 @@ const PAGES: { name: string; path: string }[] = [
   { name: 'demo-sticks', path: '/?demo=sticks' },
   { name: 'atti-hover', path: '/?demo=hover&mode=atti' },
   { name: 'graph', path: '/?demo=sticks&mode=sport&graph=1' },
+  { name: 'wind-hover', path: '/?demo=hover&wind=moderado' },
+  { name: 'rth', path: '/?demo=rth&battery=25' },
   { name: 'devices', path: '/devices.html' },
 ];
 

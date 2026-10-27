@@ -91,7 +91,7 @@ a {
 }
 
 .hud-gps {
-  margin: 0 0 10px;
+  margin: 0 0 4px;
   color: var(--ok);
   font-size: 12px;
 }
@@ -100,11 +100,20 @@ a {
   color: var(--bad);
 }
 
-.hud-warning {
+/* Avisos apilados arriba en el centro (los dos más importantes) */
+.hud-warnings {
   position: absolute;
   top: 16px;
   left: 50%;
-  max-width: min(520px, calc(100% - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: max-content;
+  max-width: min(560px, calc(100% - 32px));
+  transform: translateX(-50%);
+}
+
+.hud-warning {
   margin: 0;
   padding: 8px 14px;
   color: #1a0f0f;
@@ -113,7 +122,31 @@ a {
   text-align: center;
   background: #ffcf5c;
   border-radius: 8px;
-  transform: translateX(-50%);
+}
+
+.hud-battery,
+.hud-wind {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-battery {
+  color: var(--ok);
+}
+
+.hud-battery[data-level='low'] {
+  color: #ffcf5c;
+}
+
+.hud-battery[data-level='critical'] {
+  color: var(--bad);
+  font-weight: 600;
+}
+
+.hud-wind {
+  margin-bottom: 10px;
+  color: var(--muted);
 }
 
 /* --- Radar de orientación --- */

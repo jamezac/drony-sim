@@ -12,6 +12,8 @@ export interface ControlActions {
   toggleMotors: boolean;
   /** Despegue o aterrizaje automático */
   takeoffLand: boolean;
+  /** Vuelta a casa (RTH): empezar o cancelar */
+  returnHome: boolean;
 }
 
 export interface ControlInput {
@@ -24,7 +26,7 @@ export function neutralSticks(): Sticks {
 }
 
 export function noActions(): ControlActions {
-  return { toggleMotors: false, takeoffLand: false };
+  return { toggleMotors: false, takeoffLand: false, returnHome: false };
 }
 
 export function neutralInput(): ControlInput {

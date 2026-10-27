@@ -24,4 +24,4 @@ npm run dev     # abre http://localhost:5173 en Chrome o Edge
 
 ## Estado
 
-🚧 Fase 3 (HUD y modos) en curso: modos Cine/Normal/Sport/ATTI, HUD estilo DJI Fly con radar de orientación y gráfica en vivo de los PID. El plan completo está en [docs/PLAN.md](docs/PLAN.md).
+🚧 Fase 4 (entorno) en curso: viento con ráfagas, efecto suelo, batería con avisos y RTH automático, vuelta a casa con H y límites de altura y distancia. El plan completo está en [docs/PLAN.md](docs/PLAN.md).
