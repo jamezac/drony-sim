@@ -21,6 +21,17 @@ const inertiaOmega = new Vector3();
 const gyroscopic = new Vector3();
 const rotationAxis = new Vector3();
 const deltaRotation = new Quaternion();
+const airVelocity = new Vector3();
+
+/** Condiciones del aire en un paso */
+export interface AirConditions {
+  /** Velocidad del viento (m/s, mundo) */
+  wind: Vector3;
+  /** Multiplicador del empuje (efecto suelo); 1 = sin efecto */
+  thrustFactor: number;
+}
+
+const STILL_AIR: AirConditions = { wind: new Vector3(), thrustFactor: 1 };
 
 /** Acerca el empuje real de cada motor al pedido (retardo de primer orden, exacto para dt fijo). */
 export function updateMotors(state: DroneState, commands: readonly number[], dt: number): void {
@@ -50,15 +61,18 @@ export function computeBodyTorque(thrusts: readonly number[], out: Vector3): Vec
 }
 
 /** Integra un paso con los empujes actuales de los motores. */
-export function integrate(state: DroneState, dt: number): void {
+export function integrate(state: DroneState, dt: number, air: AirConditions = STILL_AIR): void {
   const { mass, inertia, linearDrag, angularDrag } = droneConfig;
 
   // --- Traslación (mundo) ---
   let totalThrust = 0;
   for (let i = 0; i < MOTOR_COUNT; i++) totalThrust += state.motorThrust[i];
-  force.set(0, totalThrust, 0).applyQuaternion(state.orientation); // el empuje va en el "arriba" del cuerpo
+  force.set(0, totalThrust * air.thrustFactor, 0).applyQuaternion(state.orientation); // el empuje va en el "arriba" del cuerpo
   force.y -= mass * simConfig.gravity;
-  force.addScaledVector(state.velocity, -linearDrag * state.velocity.length());
+  // El arrastre depende de la velocidad RESPECTO AL AIRE: con viento, un dron quieto sobre el
+  // suelo recibe la misma fuerza que si volara contra el aire en calma
+  airVelocity.subVectors(state.velocity, air.wind);
+  force.addScaledVector(airVelocity, -linearDrag * airVelocity.length());
 
   state.velocity.addScaledVector(force, dt / mass);
   state.position.addScaledVector(state.velocity, dt);
@@ -83,7 +97,12 @@ export function integrate(state: DroneState, dt: number): void {
 }
 
 /** Un paso completo de física: motores y luego integración. */
-export function stepDynamics(state: DroneState, commands: readonly number[], dt: number): void {
+export function stepDynamics(
+  state: DroneState,
+  commands: readonly number[],
+  dt: number,
+  air: AirConditions = STILL_AIR,
+): void {
   updateMotors(state, commands, dt);
-  integrate(state, dt);
+  integrate(state, dt, air);
 }

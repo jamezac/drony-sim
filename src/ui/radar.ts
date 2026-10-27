@@ -65,7 +65,8 @@ export class Radar {
     this.context = context;
   }
 
-  update(x: number, z: number, heading: number): void {
+  /** @param windX,windZ viento (m/s, mundo): se dibuja como una flecha hacia donde sopla */
+  update(x: number, z: number, heading: number, windX = 0, windZ = 0): void {
     const dpr = Math.min(window.devicePixelRatio, 2);
     if (this.canvas.width !== SIZE * dpr) this.canvas.width = this.canvas.height = SIZE * dpr;
     const ctx = this.context;
@@ -115,9 +116,38 @@ export class Radar {
     const forwardY = -Math.cos(heading);
     this.drawDrone(droneX, droneY, forwardX, forwardY);
 
+    this.drawWind(windX, windZ);
+
     const orientation = orientationToPilot(x, z, heading);
     this.label.textContent = ORIENTATION_LABELS[orientation];
     this.label.classList.toggle('radar-warning', orientation === 'noseIn');
+  }
+
+  /** Flecha de viento en la esquina superior izquierda, más larga cuanto más sopla. */
+  private drawWind(windX: number, windZ: number): void {
+    const speed = Math.hypot(windX, windZ);
+    if (speed < 0.5) return;
+    const ctx = this.context;
+    const centerX = 18;
+    const centerY = 18;
+    const length = Math.min(14, 5 + speed);
+    const dirX = windX / speed;
+    const dirY = windZ / speed; // +Z del mundo es hacia abajo en el radar
+    const tipX = centerX + dirX * length;
+    const tipY = centerY + dirY * length;
+    ctx.strokeStyle = this.colors.muted;
+    ctx.fillStyle = this.colors.muted;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(centerX - dirX * length, centerY - dirY * length);
+    ctx.lineTo(tipX, tipY);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(tipX, tipY);
+    ctx.lineTo(tipX - dirX * 6 - dirY * 4, tipY - dirY * 6 + dirX * 4);
+    ctx.lineTo(tipX - dirX * 6 + dirY * 4, tipY - dirY * 6 - dirX * 4);
+    ctx.closePath();
+    ctx.fill();
   }
 
   /** Triángulo con la punta (morro) en naranja hacia donde apunta el dron. */

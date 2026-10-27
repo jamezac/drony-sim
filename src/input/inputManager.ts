@@ -13,6 +13,8 @@ import { pickSpaceMousePad } from './spaceMouseGamepad';
 export interface FrameInput extends ControlInput {
   /** Reiniciar la simulación (tecla R) */
   reset: boolean;
+  /** Pasar al siguiente nivel de viento (tecla V) */
+  cycleWind: boolean;
   spaceMouseConnected: boolean;
   /** Nombre del mando genérico conectado, o null */
   gamepadName: string | null;
@@ -50,7 +52,14 @@ export class InputManager {
   sample(dt: number): FrameInput {
     const keyboard = this.keyboard.sample(dt);
     if (this.demo) {
-      return { ...this.demo.sample(dt), reset: false, spaceMouseConnected: false, gamepadName: null, modeRequest: null };
+      return {
+        ...this.demo.sample(dt),
+        reset: false,
+        cycleWind: false,
+        spaceMouseConnected: false,
+        gamepadName: null,
+        modeRequest: null,
+      };
     }
 
     const pads = navigator.getGamepads().filter((pad) => pad !== null);
@@ -60,6 +69,7 @@ export class InputManager {
     let spaceMouseSticks: Sticks = neutralSticks();
     let takeoffLand = keyboard.actions.takeoffLand;
     let toggleMotors = keyboard.actions.toggleMotors;
+    let returnHome = keyboard.actions.returnHome;
     let modeButton = false;
 
     if (spaceMouse) {
@@ -81,12 +91,14 @@ export class InputManager {
       takeoffLand = this.edges.pressed('gamepad.takeoffLand', isDown(gamepad, buttons.takeoffLand)) || takeoffLand;
       toggleMotors = this.edges.pressed('gamepad.toggleMotors', isDown(gamepad, buttons.toggleMotors)) || toggleMotors;
       modeButton = this.edges.pressed('gamepad.modeSwitch', isDown(gamepad, buttons.modeSwitch)) || modeButton;
+      returnHome = this.edges.pressed('gamepad.returnHome', isDown(gamepad, buttons.returnHome)) || returnHome;
     }
 
     return {
       sticks: combineSticks(keyboard.sticks, spaceMouseSticks, gamepadSticks),
-      actions: { takeoffLand, toggleMotors },
+      actions: { takeoffLand, toggleMotors, returnHome },
       reset: keyboard.actions.reset,
+      cycleWind: keyboard.actions.cycleWind,
       spaceMouseConnected: spaceMouse !== null,
       gamepadName: gamepad?.id ?? null,
       modeRequest: keyboard.mode ?? (modeButton ? 'next' : null),

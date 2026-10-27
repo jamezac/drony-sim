@@ -1,16 +1,34 @@
-// HUD estilo DJI Fly: estado, modo, GPS, telemetría, avisos y radar de orientación.
+// HUD estilo DJI Fly: estado, modo, GPS, batería, viento, telemetría, avisos y radar de orientación.
 // H = altura, D = distancia al home, V.H / V.V = velocidad horizontal / vertical.
-// La batería llega en la fase 4, cuando se simule (no mostramos un dato inventado).
 
+import { batteryConfig, type WindLevel } from '../core/config';
 import { FLIGHT_PHASE_LABELS, type FlightPhase } from '../control/flightState';
 import { FLIGHT_MODE_LABELS, type FlightModeName } from '../control/modes';
+import { RTH_STAGE_LABELS, type RthStage } from '../control/rth';
 import { Radar } from './radar';
+
+const WIND_LEVEL_LABELS: Record<WindLevel, string> = {
+  calm: 'calma',
+  moderate: 'moderado',
+  strong: 'fuerte',
+};
+
+// Avisos a la vez como máximo: más serían ruido
+const MAX_WARNINGS = 2;
 
 export interface HudData {
   mode: FlightModeName;
   /** Si el modo actual usa el GPS (todos menos ATTI) */
   gps: boolean;
   phase: FlightPhase;
+  rthStage: RthStage;
+  batteryPercent: number;
+  batteryVoltage: number;
+  windLevel: WindLevel;
+  /** Viento en este momento (m/s, mundo), con ráfagas */
+  windX: number;
+  windZ: number;
+  warnings: string[];
   altitude: number;
   distance: number;
   horizontalSpeed: number;
@@ -41,11 +59,15 @@ export class Hud {
   private readonly mode = element('span', 'hud-mode');
   private readonly phase = element('span', 'hud-phase');
   private readonly gps = element('p', 'hud-gps');
+  private readonly battery = element('p', 'hud-battery');
+  private readonly wind = element('p', 'hud-wind');
   private readonly altitude = metric('H');
   private readonly distance = metric('D');
   private readonly horizontalSpeed = metric('V.H');
   private readonly verticalSpeed = metric('V.V');
-  private readonly warning = element('p', 'hud-warning');
+  private readonly warnings = element('div', 'hud-warnings');
+  /** Avisos que se están mostrando, para no rehacer el DOM en cada frame */
+  private warningsKey = '';
   private readonly input = element('p', 'hud-input');
   private readonly gamepad = element('p', 'hud-input hud-input-on');
   private readonly radar: Radar;
@@ -56,7 +78,7 @@ export class Hud {
     status.append(this.mode, this.phase);
     const metrics = element('div', 'hud-metrics');
     metrics.append(this.altitude.root, this.distance.root, this.horizontalSpeed.root, this.verticalSpeed.root);
-    panel.append(element('h1', 'hud-title', 'Drony Sim'), status, this.gps, metrics);
+    panel.append(element('h1', 'hud-title', 'Drony Sim'), status, this.gps, this.battery, this.wind, metrics);
 
     const inputPanel = element('div', 'hud-panel hud-input-panel');
     inputPanel.append(this.input, this.gamepad);
@@ -64,22 +86,23 @@ export class Hud {
     const help = element(
       'p',
       'hud-help',
-      'Espacio / botón izq.: despegar o aterrizar · E: motores · 1-4 / botón dcho.: modo · W/S: altura · ' +
-        'A/D: giro · ↑↓←→: mover · R: reiniciar · G: gráfica · `: ajustes · ',
+      'Espacio / botón izq.: despegar o aterrizar · E: motores · H: volver a casa · 1-4 / botón dcho.: modo · ' +
+        'W/S: altura · A/D: giro · ↑↓←→: mover · V: viento · R: reiniciar · G: gráfica · `: ajustes · ',
     );
     const devicesLink = document.createElement('a');
     devicesLink.href = '/devices.html';
     devicesLink.textContent = 'Dispositivos';
     help.append(devicesLink);
 
-    root.append(panel, this.warning, inputPanel, help);
+    root.append(panel, this.warnings, inputPanel, help);
     this.radar = new Radar(root);
   }
 
   update(data: HudData): void {
     this.mode.textContent = FLIGHT_MODE_LABELS[data.mode];
     this.mode.dataset.mode = data.mode;
-    this.phase.textContent = ` · ${FLIGHT_PHASE_LABELS[data.phase]}`;
+    const stage = data.phase === 'returning' ? ` · ${RTH_STAGE_LABELS[data.rthStage]}` : '';
+    this.phase.textContent = ` · ${FLIGHT_PHASE_LABELS[data.phase]}${stage}`;
     this.gps.textContent = data.gps ? '● GPS: mantiene la posición' : '○ Sin GPS: no mantiene la posición';
     this.gps.classList.toggle('hud-gps-off', !data.gps);
 
@@ -88,8 +111,19 @@ export class Hud {
     this.horizontalSpeed.value.textContent = `${data.horizontalSpeed.toFixed(1)} m/s`;
     this.verticalSpeed.value.textContent = `${data.verticalSpeed.toFixed(1)} m/s`;
 
-    this.warning.hidden = data.gps;
-    this.warning.textContent = '⚠ Modo ATTI: sin GPS el dron deriva. Al soltar los sticks no frena: corrige tú.';
+    const percent = Math.round(data.batteryPercent);
+    this.battery.textContent = `Batería ${percent} % · ${data.batteryVoltage.toFixed(1)} V`;
+    this.battery.dataset.level =
+      data.batteryPercent <= batteryConfig.rthPercent ? 'critical' : data.batteryPercent <= batteryConfig.lowPercent ? 'low' : 'ok';
+    const windSpeed = Math.hypot(data.windX, data.windZ);
+    this.wind.textContent = `Viento ${WIND_LEVEL_LABELS[data.windLevel]} · ${windSpeed.toFixed(1)} m/s`;
+
+    const shown = data.warnings.slice(0, MAX_WARNINGS);
+    const key = shown.join('|');
+    if (key !== this.warningsKey) {
+      this.warningsKey = key;
+      this.warnings.replaceChildren(...shown.map((w) => element('p', 'hud-warning', `⚠ ${w}`)));
+    }
 
     this.input.textContent = data.spaceMouseConnected
       ? '● SpaceMouse conectado'
@@ -99,6 +133,6 @@ export class Hud {
     this.gamepad.hidden = data.gamepadName === null;
     this.gamepad.textContent = `● Mando: ${data.gamepadName?.split('(')[0].trim() ?? ''}`;
 
-    this.radar.update(data.x, data.z, data.heading);
+    this.radar.update(data.x, data.z, data.heading, data.windX, data.windZ);
   }
 }

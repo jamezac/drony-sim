@@ -43,7 +43,82 @@ export const droneConfig = {
   restHeight: 0.03, // m
   // Empuje de los motores al ralentí (armados, en el suelo), como fracción del máximo
   idleThrustFraction: 0.04,
+  // Efecto suelo: cerca del suelo el aire que empujan las hélices "rebota" y da más empuje.
+  // Factor máximo (pegado al suelo); a más de ~2 diámetros de hélice ya casi no se nota.
+  groundEffectMax: 1.3,
 } as const;
+
+// ---------------------------------------------------------------------------
+// Entorno: viento, límites del mundo
+// ---------------------------------------------------------------------------
+
+export type WindLevel = 'calm' | 'moderate' | 'strong';
+
+export const windConfig = {
+  // Semilla de las ráfagas: el mismo viento en cada vuelo, para poder comparar y testear
+  seed: 20261026,
+  // Hacia dónde sopla, con el mismo convenio que el rumbo del dron (0 = hacia −Z, π/2 = hacia −X).
+  // Por defecto cruza de derecha a izquierda visto desde el despegue: la deriva se ve bien.
+  towardHeading: Math.PI / 2,
+  // Velocidad media y desviación típica de las ráfagas (m/s). Un DJI Mini aguanta ~10,7 m/s.
+  levels: {
+    calm: { speed: 0, gustStd: 0 },
+    moderate: { speed: 5, gustStd: 1.5 },
+    strong: { speed: 9, gustStd: 3 },
+  } satisfies Record<WindLevel, { speed: number; gustStd: number }>,
+  // Cuánto duran las ráfagas: tiempo de correlación del ruido (proceso de Ornstein-Uhlenbeck)
+  gustSeconds: 2,
+  // Las ráfagas verticales son más flojas que las horizontales
+  verticalGustRatio: 0.3,
+  // A partir de esta velocidad se avisa de viento fuerte
+  strongWindWarning: 8, // m/s
+  defaultLevel: 'calm' as WindLevel,
+};
+
+export const limitsConfig = {
+  // Altura máxima legal habitual (UE, EE. UU., muchos países de Latinoamérica): el dron no sube más
+  maxAltitude: 120, // m
+  // Distancia máxima al despegue: el borde útil del mapa (el suelo mide 400 × 400 m)
+  maxDistance: 180, // m
+};
+
+// ---------------------------------------------------------------------------
+// Batería (inspirada en la de un DJI Mini 2: 2250 mAh, 7,7 V ≈ 17,3 Wh)
+// ---------------------------------------------------------------------------
+
+export const batteryConfig = {
+  capacityWh: 17.3,
+  fullVoltage: 8.4, // V (2 celdas Li-ion cargadas)
+  emptyVoltage: 6.8, // V
+  internalResistance: 0.05, // Ω: por eso la tensión cae al acelerar fuerte
+  // Potencia de los motores: P = k·Σ T^1,5 (teoría del momento: cuesta más que proporcional
+  // al empuje). Con k = 18,2 el hover consume ~35 W → ~29 min de vuelo, como un Mini real.
+  powerPerThrust: 18.2, // W/N^1,5
+  avionicsPower: 1.5, // W: electrónica, cámara, radio
+  // Acelera el consumo para no esperar media hora: con 6, el hover dura ~5 min
+  drainMultiplier: 6,
+  // Umbrales (%), como en DJI: aviso, vuelta a casa automática y aterrizaje forzoso
+  lowPercent: 30,
+  rthPercent: 15,
+  criticalPercent: 10,
+};
+
+// ---------------------------------------------------------------------------
+// Vuelta a casa (RTH)
+// ---------------------------------------------------------------------------
+
+export const rthConfig = {
+  // Altura de vuelta: por encima de árboles y obstáculos habituales. Si ya está más alto, la mantiene.
+  altitude: 30, // m
+  speed: 8, // m/s
+  // Si está más cerca que esto, vuelve sin subir (como DJI)
+  nearHomeDistance: 20, // m
+  // Al llegar a este radio del despegue y casi parado, empieza a aterrizar
+  arriveRadius: 0.5, // m
+  arriveSpeed: 0.3, // m/s
+  // Gira hacia casa antes de avanzar hasta que el error de rumbo baja de esto
+  headingTolerance: 10 * DEG,
+};
 
 // ---------------------------------------------------------------------------
 // Control: PID en cascada. Cada lazo controla al de debajo y el interior es el más rápido.
@@ -232,6 +307,7 @@ export const gamepadConfig = {
     takeoffLand: 0, // A (Xbox) / Cruz (PlayStation)
     toggleMotors: 1, // B (Xbox) / Círculo (PlayStation)
     modeSwitch: 3, // Y (Xbox) / Triángulo (PlayStation)
+    returnHome: 2, // X (Xbox) / Cuadrado (PlayStation)
   },
 };
 
@@ -309,6 +385,11 @@ export const renderConfig = {
   coneSpacing: 10, // m entre conos de referencia
   coneRange: 40, // m: hasta dónde llegan los conos desde el home
   shadowRange: 8, // m: tamaño del área con sombras alrededor del dron
+  // Manga de viento a la derecha y por delante del despegue: a esa distancia entra en el encuadre
+  // de la cámara de seguimiento (más cerca, la manga queda por encima del borde de la imagen)
+  windsockPosition: { x: 3, z: -10 }, // m
+  // Velocidad del viento a la que la manga queda totalmente horizontal
+  windsockFullSpeed: 8, // m/s
   // Posición del sol respecto al dron. Casi vertical: la sombra cae justo debajo y sirve de
   // referencia de altura al aterrizar (a 1,2 m se desplaza solo ~0,2 m)
   sunOffset: { x: 3, y: 20, z: 2 }, // m
