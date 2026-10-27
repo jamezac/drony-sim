@@ -24,4 +24,4 @@ npm run dev     # abre http://localhost:5173 en Chrome o Edge
 
 ## Estado
 
-✅ Fase 0 (esqueleto y prueba del SpaceMouse) terminada. Siguiente: fase 1, MVP volable. El plan completo está en [docs/PLAN.md](docs/PLAN.md).
+🚧 Fase 1 (MVP volable) en curso: ya se puede volar en modo Normal con el SpaceMouse o el teclado. El plan completo está en [docs/PLAN.md](docs/PLAN.md).

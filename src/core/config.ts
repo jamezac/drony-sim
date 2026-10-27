@@ -1,4 +1,123 @@
 // Parámetros ajustables del simulador. Nada de números mágicos fuera de aquí.
+// Los objetos sin `as const` se pueden modificar en vivo desde el panel de ajuste (tecla `).
+
+const DEG = Math.PI / 180;
+
+// ---------------------------------------------------------------------------
+// Simulación
+// ---------------------------------------------------------------------------
+
+export const simConfig = {
+  // Paso de física fijo. 240 Hz da margen de sobra a los lazos de control más rápidos.
+  physicsHz: 240,
+  // Si un frame tarda más que esto (pestaña en segundo plano, tirón), se recorta para no
+  // acumular cientos de pasos y congelar la página ("espiral de la muerte")
+  maxFrameSeconds: 0.1,
+  gravity: 9.81,
+} as const;
+
+// ---------------------------------------------------------------------------
+// Dron (inspirado en un DJI Mini, ~250 g). Valores aproximados.
+// ---------------------------------------------------------------------------
+
+export const droneConfig = {
+  mass: 0.249, // kg
+  // Distancia del centro a cada motor. La diagonal motor-motor de un Mini es ~0,21 m.
+  armLength: 0.105, // m
+  propRadius: 0.06, // m (hélices de ~4,7")
+  // Momentos de inercia (kg·m²) sobre los ejes del cuerpo: x = derecha, y = arriba, z = atrás.
+  // El yaw (y) tiene más inercia porque los motores están lejos de ese eje.
+  inertia: { x: 6e-4, y: 1.1e-3, z: 6e-4 },
+  // Empuje máximo por motor. Con 1,53 N la relación empuje/peso es ~2,5 (hover ≈ 0,61 N por motor).
+  maxThrustPerMotor: 1.53, // N
+  // Los motores no cambian de empuje al instante: retardo de primer orden
+  motorTimeConstant: 0.03, // s
+  // Par de reacción de cada hélice por newton de empuje (genera el yaw)
+  yawTorquePerThrust: 0.016, // N·m/N
+  // Arrastre cuadrático F = −c·|v|·v. No es inventado: sale de que a la velocidad máxima de
+  // Sport (16 m/s) con la inclinación máxima (35°) el empuje horizontal iguala al arrastre:
+  // c = m·g·tan(35°) / 16² ≈ 0,0067 kg/m
+  linearDrag: 0.0067, // kg/m
+  angularDrag: 5e-5, // N·m·s/rad
+  // Altura del centro de masas cuando el dron está posado
+  restHeight: 0.03, // m
+  // Empuje de los motores al ralentí (armados, en el suelo), como fracción del máximo
+  idleThrustFraction: 0.04,
+} as const;
+
+// ---------------------------------------------------------------------------
+// Control: PID en cascada. Cada lazo controla al de debajo y el interior es el más rápido.
+//   posición → velocidad → aceleración/inclinación → actitud → velocidad angular → motores
+// Regla práctica: cada lazo ~3 veces más lento que el que tiene debajo.
+// ---------------------------------------------------------------------------
+
+export const controlConfig = {
+  // Lazo interior: velocidad angular (rad/s) → aceleración angular (rad/s²)
+  rate: { kp: 25, ki: 0, kd: 0, maxOutput: 300 },
+  yawRate: { kp: 12, ki: 1, kd: 0, maxOutput: 60 },
+  // Actitud: error de orientación (rad) → velocidad angular deseada (rad/s)
+  attitude: { kp: 8, yawKp: 3, maxTiltRate: 6, maxYawRate: 3 },
+  // Velocidad horizontal (m/s) → aceleración deseada (m/s²)
+  velocity: { kp: 2.5, ki: 0.3, kd: 0, maxOutput: 8 },
+  // Posición (m) → velocidad (m/s) cuando se mantiene el punto al soltar los sticks
+  position: { kp: 1, maxSpeed: 2 },
+  // Velocidad vertical (m/s) → aceleración vertical (m/s²)
+  verticalSpeed: { kp: 5, ki: 2, kd: 0, maxOutput: 8 },
+  // Altura (m) → velocidad vertical (m/s) cuando se mantiene la altura
+  altitude: { kp: 1.5, maxSpeed: 2 },
+  // Por debajo de esta velocidad horizontal, al soltar los sticks se fija el punto a mantener
+  holdEngageSpeed: 0.3, // m/s
+};
+
+// ---------------------------------------------------------------------------
+// Modos de vuelo (fase 1: solo Normal). Valores aproximados de un DJI Mini.
+// ---------------------------------------------------------------------------
+
+export interface FlightModeParams {
+  maxSpeed: number; // m/s horizontal
+  maxClimb: number; // m/s
+  maxDescent: number; // m/s
+  maxTilt: number; // rad
+  maxYawRate: number; // rad/s
+  // Aceleración máxima del objetivo de velocidad: define lo "suave" que arranca y frena
+  maxAccel: number; // m/s²
+}
+
+export const modesConfig: Record<'normal', FlightModeParams> = {
+  normal: {
+    maxSpeed: 10,
+    maxClimb: 3,
+    maxDescent: 3,
+    maxTilt: 25 * DEG,
+    maxYawRate: 60 * DEG,
+    maxAccel: 5,
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Fases automáticas (despegue, aterrizaje, armado)
+// ---------------------------------------------------------------------------
+
+export const flightConfig = {
+  takeoffAltitude: 1.2, // m, igual que el despegue automático de DJI
+  takeoffSpeed: 1, // m/s
+  landingSpeed: 0.8, // m/s
+  landingSlowSpeed: 0.4, // m/s por debajo de landingSlowAltitude
+  landingSlowAltitude: 1, // m
+  // Throttle necesario para despegar a mano con los motores en marcha
+  manualTakeoffThrottle: 0.3,
+  // Throttle abajo durante este tiempo, ya posado, para parar los motores
+  disarmHoldSeconds: 1.5,
+  disarmThrottle: -0.8,
+  // Altura sobre el reposo a partir de la cual se considera que el dron ha despegado
+  airborneHeight: 0.15, // m
+  // Mover cualquier stick más que esto cancela el despegue/aterrizaje automático
+  overrideStick: 0.3,
+};
+
+// ---------------------------------------------------------------------------
+// Entrada
+// ---------------------------------------------------------------------------
 
 /** Sticks virtuales (−1..1): throttle + = subir, yaw + = girar en horario, pitch + = adelante, roll + = derecha. */
 export type StickName = 'throttle' | 'yaw' | 'pitch' | 'roll';
@@ -44,6 +163,20 @@ export const spaceMouseGamepadConfig = {
   },
 };
 
+export const inputConfig = {
+  spaceMouse: {
+    // Zona muerta: por debajo no hace nada. Ayuda con el acoplamiento entre ejes (~40 % en pico).
+    deadzone: 0.12,
+    // Expo: suave cerca del centro para correcciones finas, completo a fondo
+    expo: 0.3,
+  },
+  keyboard: {
+    // Tiempo para pasar de 0 a ±1 con la tecla pulsada, y para volver a 0 al soltarla
+    rampUpSeconds: 0.3,
+    rampDownSeconds: 0.1,
+  },
+};
+
 // SpaceMouse por WebHID: alternativa, solo funciona con el driver 3DxWare cerrado
 export const spaceMouseConfig = {
   // Vendor IDs USB de 3Dconnexion (el antiguo de Logitech y el actual)
@@ -53,7 +186,6 @@ export const spaceMouseConfig = {
   usagePage: 0x01,
   usage: 0x08,
   // Valor bruto aproximado del eje a fondo. Se normaliza a -1..1 dividiendo por esto.
-  // Ajustar con la página de prueba si al empujar a tope no se llega a ±1.
   axisFullScale: 350,
 } as const;
 
@@ -67,4 +199,27 @@ export const mappingWizardConfig = {
   restRatio: 0.15,
   // Tiempo con la tapa suelta tras el gesto antes de pasar al siguiente paso
   restMs: 400,
+} as const;
+
+// ---------------------------------------------------------------------------
+// Render
+// ---------------------------------------------------------------------------
+
+export const renderConfig = {
+  // Cámara de tercera persona: detrás y algo por encima del dron
+  chaseDistance: 2.5, // m
+  chaseHeight: 1, // m
+  // Apunta algo por debajo del dron para que el suelo (y su sombra) entre en el encuadre
+  chaseLookOffset: -0.3, // m
+  chaseFov: 60, // grados
+  // Rigidez del "muelle" que sigue al dron (1/s): más alto = sigue más pegado
+  chasePositionStiffness: 6,
+  chaseYawStiffness: 3,
+  groundSize: 400, // m
+  coneSpacing: 10, // m entre conos de referencia
+  coneRange: 40, // m: hasta dónde llegan los conos desde el home
+  shadowRange: 8, // m: tamaño del área con sombras alrededor del dron
+  // Posición del sol respecto al dron. Casi vertical: la sombra cae justo debajo y sirve de
+  // referencia de altura al aterrizar (a 1,2 m se desplaza solo ~0,2 m)
+  sunOffset: { x: 3, y: 20, z: 2 }, // m
 } as const;

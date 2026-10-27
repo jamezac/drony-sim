@@ -36,7 +36,7 @@ npm run check      # Chrome de Windows invisible: capturas en .check/ + errores 
 ```
 
 - Páginas: `http://localhost:5173/` (simulador) y `/devices.html` (prueba y calibración de dispositivos).
-- `npm run check` usa `playwright-core` (no descarga navegadores) y se conecta por CDP al Chrome de Windows. Requiere WSL con `networkingMode=mirrored`. Hay que ejecutarlo tras cada mejora grande, revisar las capturas y corregir, con un **máximo de 3 rondas**. Para añadir páginas, edita el array `PAGES` en `scripts/check.ts`. Las páginas avisan de que están listas con `window.__dronyReady = true`.
+- `npm run check` usa `playwright-core` (no descarga navegadores) y se conecta por CDP al Chrome de Windows. Requiere WSL con `networkingMode=mirrored`. Hay que ejecutarlo tras cada mejora grande, revisar las capturas y corregir, con un **máximo de 3 rondas**. Para añadir páginas, edita el array `PAGES` en `scripts/check.ts`. Las páginas avisan de que están listas con `window.__dronyReady = true`. El check simula una escala de pantalla del 150 %, como Windows, porque con escala 1 no se ven los fallos de tamaño del canvas.
 - El plan completo por fases está en [docs/PLAN.md](docs/PLAN.md).
 
 ## Estructura prevista
