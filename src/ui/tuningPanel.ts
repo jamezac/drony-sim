@@ -16,6 +16,7 @@ import {
   type SpaceMouseProfileName,
 } from '../core/config';
 import { defaultInputSettings, saveInputSettings } from '../core/settings';
+import { FLIGHT_MODE_LABELS, MODE_CYCLE } from '../control/modes';
 import type { InputManager } from '../input/inputManager';
 
 const DEG = Math.PI / 180;
@@ -59,13 +60,19 @@ export function createTuningPanel(input: InputManager): TuningPanel {
   vertical.add(controlConfig.altitude, 'kp', 0, 5, 0.05).name('Altura · kp');
   pid.close();
 
-  const normal = gui.addFolder('Modo Normal');
-  normal.add(modesConfig.normal, 'maxSpeed', 1, 20, 0.5).name('Vel. máx. (m/s)');
-  normal.add(modesConfig.normal, 'maxClimb', 0.5, 6, 0.1).name('Subida máx. (m/s)');
-  normal.add(modesConfig.normal, 'maxDescent', 0.5, 6, 0.1).name('Bajada máx. (m/s)');
-  normal.add(degrees(modesConfig.normal, 'maxTilt'), 'maxTilt', 5, 45, 1).name('Inclinación máx. (°)');
-  normal.add(degrees(modesConfig.normal, 'maxYawRate'), 'maxYawRate', 10, 200, 5).name('Giro máx. (°/s)');
-  normal.add(modesConfig.normal, 'maxAccel', 1, 15, 0.5).name('Aceleración (m/s²)');
+  const modes = gui.addFolder('Modos de vuelo');
+  for (const name of MODE_CYCLE) {
+    const params = modesConfig[name];
+    const folder = modes.addFolder(FLIGHT_MODE_LABELS[name]);
+    folder.add(params, 'maxSpeed', 1, 20, 0.5).name('Vel. máx. (m/s)');
+    folder.add(params, 'maxClimb', 0.5, 6, 0.1).name('Subida máx. (m/s)');
+    folder.add(params, 'maxDescent', 0.5, 6, 0.1).name('Bajada máx. (m/s)');
+    folder.add(degrees(params, 'maxTilt'), 'maxTilt', 5, 45, 1).name('Inclinación máx. (°)');
+    folder.add(degrees(params, 'maxYawRate'), 'maxYawRate', 10, 200, 5).name('Giro máx. (°/s)');
+    folder.add(params, 'maxAccel', 1, 15, 0.5).name('Aceleración (m/s²)');
+    folder.close();
+  }
+  modes.close();
 
   // Entrada: se guarda en el navegador al soltar cada control
   const { settings } = input;
@@ -75,8 +82,8 @@ export function createTuningPanel(input: InputManager): TuningPanel {
   entry.add(settings, 'spaceMouseProfile', profiles).name('SpaceMouse · perfil').onFinishChange(save);
   entry.add(settings, 'deadzone', 0, 0.5, 0.01).name('SpaceMouse · zona muerta').onFinishChange(save);
   entry.add(settings, 'expo', 0, 1, 0.05).name('SpaceMouse · expo').onFinishChange(save);
-  const modes = Object.keys(gamepadConfig.modes) as GamepadStickMode[];
-  entry.add(settings, 'gamepadMode', modes).name('Mando · modo').onFinishChange(save);
+  const gamepadModes = Object.keys(gamepadConfig.modes) as GamepadStickMode[];
+  entry.add(settings, 'gamepadMode', gamepadModes).name('Mando · modo').onFinishChange(save);
   entry
     .add(
       {

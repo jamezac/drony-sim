@@ -11,8 +11,8 @@ import { noActions, type ControlActions } from './core/controlInput';
 import { FixedStepLoop } from './core/loop';
 import { loadInputSettings, SETTINGS_STORAGE_KEY } from './core/settings';
 import { Simulation } from './core/simulation';
-import { FLIGHT_MODE_LABELS } from './control/modes';
-import { headingOf } from './physics/drone';
+import { modeParams, nextMode, parseModeName } from './control/modes';
+import { headingOf, tiltOf } from './physics/drone';
 import { parseDemoName } from './input/demoInput';
 import { InputManager } from './input/inputManager';
 import { ChaseCamera } from './render/cameras';
@@ -20,6 +20,7 @@ import { DroneModel } from './render/droneModel';
 import { createWorld } from './render/scene';
 import { Hud } from './ui/hud';
 import { StickView } from './ui/stickView';
+import { TelemetryGraph } from './ui/telemetryGraph';
 import { createTuningPanel } from './ui/tuningPanel';
 import './style.css';
 
@@ -34,7 +35,10 @@ function byId<T extends HTMLElement>(id: string): T {
   return element as T;
 }
 
-const demo = parseDemoName(new URLSearchParams(window.location.search).get('demo'));
+// Parámetros de la URL: ?demo=hover|sticks (vuelo automático), ?mode=cine|normal|sport|atti, ?graph=1
+const params = new URLSearchParams(window.location.search);
+const demo = parseDemoName(params.get('demo'));
+const RAD_TO_DEG = 180 / Math.PI;
 
 const world = createWorld(byId<HTMLCanvasElement>('scene'));
 const drone = new DroneModel();
@@ -42,8 +46,9 @@ world.scene.add(drone.group);
 const chase = new ChaseCamera();
 const hud = new Hud(byId('hud'));
 const stickView = new StickView(byId('hud'));
+const graph = new TelemetryGraph(byId('hud'), params.get('graph') === '1');
 
-const sim = new Simulation();
+const sim = new Simulation(parseModeName(params.get('mode')) ?? 'normal');
 const input = new InputManager(loadInputSettings(), demo);
 const loop = new FixedStepLoop(1 / simConfig.physicsHz, simConfig.maxFrameSeconds);
 const tuningPanel = createTuningPanel(input);
@@ -90,6 +95,9 @@ world.renderer.setAnimationLoop((timeMs: number) => {
     sim.reset();
     chase.snap(sim.state.position, headingOf(sim.state.orientation));
   }
+  if (frameInput.modeRequest) {
+    sim.setMode(frameInput.modeRequest === 'next' ? nextMode(sim.mode) : frameInput.modeRequest);
+  }
   pendingActions = {
     toggleMotors: pendingActions.toggleMotors || frameInput.actions.toggleMotors,
     takeoffLand: pendingActions.takeoffLand || frameInput.actions.takeoffLand,
@@ -108,17 +116,32 @@ world.renderer.setAnimationLoop((timeMs: number) => {
   world.followWithSun(pose.position);
 
   const { velocity, position } = sim.state;
+  const horizontalSpeed = Math.hypot(velocity.x, velocity.z);
   hud.update({
-    mode: FLIGHT_MODE_LABELS[sim.mode],
+    mode: sim.mode,
+    gps: modeParams(sim.mode).positionHold,
     phase: sim.phase,
     altitude: sim.altitude,
     distance: Math.hypot(position.x, position.z),
-    horizontalSpeed: Math.hypot(velocity.x, velocity.z),
+    horizontalSpeed,
     verticalSpeed: velocity.y,
+    x: pose.position.x,
+    z: pose.position.z,
+    heading: headingOf(pose.orientation),
     spaceMouseConnected: frameInput.spaceMouseConnected,
     gamepadName: frameInput.gamepadName,
   });
   stickView.update(frameInput.sticks);
+
+  const { telemetry } = sim.controller;
+  graph.push({
+    altitude: sim.altitude,
+    altitudeSetpoint: telemetry.altitudeSetpoint,
+    speed: horizontalSpeed,
+    speedSetpoint: telemetry.horizontalSpeedSetpoint,
+    tilt: tiltOf(sim.state.orientation) * RAD_TO_DEG,
+    tiltSetpoint: telemetry.desiredTilt * RAD_TO_DEG,
+  });
 
   world.renderer.render(world.scene, chase.camera);
   frames++;

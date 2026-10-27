@@ -1,8 +1,8 @@
-// Teclado como respaldo (Modo 2): W/S altura, A/D giro, flechas adelante/atrás/lados.
+// Teclado como respaldo (Modo 2): W/S altura, A/D giro, flechas adelante/atrás/lados, 1-4 modo.
 // Una tecla es todo o nada, así que el valor sube en rampa mientras está pulsada: se parece
 // más a empujar un stick poco a poco y evita tirones bruscos del dron.
 
-import { inputConfig, type StickName } from '../core/config';
+import { inputConfig, type FlightModeName, type StickName } from '../core/config';
 import { neutralSticks, type Sticks } from '../core/controlInput';
 
 const STICK_KEYS: Record<StickName, { positive: string; negative: string }> = {
@@ -20,10 +20,19 @@ export const ACTION_KEYS = {
 
 type ActionName = keyof typeof ACTION_KEYS;
 
+/** Teclas 1-4: elegir modo directamente */
+const MODE_KEYS: Record<string, FlightModeName> = {
+  Digit1: 'cine',
+  Digit2: 'normal',
+  Digit3: 'sport',
+  Digit4: 'atti',
+};
+
 // Teclas que el navegador usaría para hacer scroll: las capturamos nosotros
 const CAPTURED_KEYS = new Set<string>([
   ...Object.values(STICK_KEYS).flatMap(({ positive, negative }) => [positive, negative]),
   ...Object.values(ACTION_KEYS),
+  ...Object.keys(MODE_KEYS),
 ]);
 
 /** Acerca `current` a `target`: tarda `upSeconds` en ir de 0 a ±1 y `downSeconds` en volver a 0. */
@@ -39,6 +48,8 @@ export interface KeyboardSample {
   sticks: Sticks;
   /** Acciones pulsadas desde la última muestra */
   actions: Record<ActionName, boolean>;
+  /** Modo elegido con 1-4 desde la última muestra, o null */
+  mode: FlightModeName | null;
 }
 
 export class KeyboardInput {
@@ -69,7 +80,8 @@ export class KeyboardInput {
     for (const [action, code] of Object.entries(ACTION_KEYS) as [ActionName, string][]) {
       actions[action] = this.justPressed.has(code);
     }
+    const modeKey = Object.keys(MODE_KEYS).find((code) => this.justPressed.has(code));
     this.justPressed.clear();
-    return { sticks: { ...this.sticks }, actions };
+    return { sticks: { ...this.sticks }, actions, mode: modeKey ? MODE_KEYS[modeKey] : null };
   }
 }

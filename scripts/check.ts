@@ -29,6 +29,8 @@ const PAGES: { name: string; path: string }[] = [
   { name: 'index', path: '/' },
   { name: 'demo-hover', path: '/?demo=hover' },
   { name: 'demo-sticks', path: '/?demo=sticks' },
+  { name: 'atti-hover', path: '/?demo=hover&mode=atti' },
+  { name: 'graph', path: '/?demo=sticks&mode=sport&graph=1' },
   { name: 'devices', path: '/devices.html' },
 ];
 

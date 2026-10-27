@@ -1,7 +1,7 @@
 // Une todas las fuentes de entrada en un único ControlInput por frame:
 // SpaceMouse + mando genérico (Gamepad API) + teclado, o un guion de demo si la URL lleva ?demo=...
 
-import { gamepadConfig, inputConfig, spaceMouseGamepadConfig } from '../core/config';
+import { gamepadConfig, inputConfig, spaceMouseGamepadConfig, type FlightModeName } from '../core/config';
 import { neutralSticks, type ControlInput, type Sticks } from '../core/controlInput';
 import type { InputSettings } from '../core/settings';
 import { DemoInput, type DemoName } from './demoInput';
@@ -16,6 +16,8 @@ export interface FrameInput extends ControlInput {
   spaceMouseConnected: boolean;
   /** Nombre del mando genérico conectado, o null */
   gamepadName: string | null;
+  /** Cambio de modo pedido: un modo concreto (teclas 1-4), 'next' (botón) o null */
+  modeRequest: FlightModeName | 'next' | null;
 }
 
 /** Detecta el momento de pulsar un botón (flanco), no el hecho de mantenerlo pulsado. */
@@ -48,7 +50,7 @@ export class InputManager {
   sample(dt: number): FrameInput {
     const keyboard = this.keyboard.sample(dt);
     if (this.demo) {
-      return { ...this.demo.sample(dt), reset: false, spaceMouseConnected: false, gamepadName: null };
+      return { ...this.demo.sample(dt), reset: false, spaceMouseConnected: false, gamepadName: null, modeRequest: null };
     }
 
     const pads = navigator.getGamepads().filter((pad) => pad !== null);
@@ -58,6 +60,7 @@ export class InputManager {
     let spaceMouseSticks: Sticks = neutralSticks();
     let takeoffLand = keyboard.actions.takeoffLand;
     let toggleMotors = keyboard.actions.toggleMotors;
+    let modeButton = false;
 
     if (spaceMouse) {
       const { profiles, buttons } = spaceMouseGamepadConfig;
@@ -68,6 +71,7 @@ export class InputManager {
         this.settings.calibration,
       );
       takeoffLand = this.edges.pressed('spaceMouse.takeoffLand', isDown(spaceMouse, buttons.takeoffLand)) || takeoffLand;
+      modeButton = this.edges.pressed('spaceMouse.modeSwitch', isDown(spaceMouse, buttons.modeSwitch)) || modeButton;
     }
 
     let gamepadSticks: Sticks = neutralSticks();
@@ -76,6 +80,7 @@ export class InputManager {
       gamepadSticks = mapSticks(gamepad.axes, modes[this.settings.gamepadMode], inputConfig.gamepad);
       takeoffLand = this.edges.pressed('gamepad.takeoffLand', isDown(gamepad, buttons.takeoffLand)) || takeoffLand;
       toggleMotors = this.edges.pressed('gamepad.toggleMotors', isDown(gamepad, buttons.toggleMotors)) || toggleMotors;
+      modeButton = this.edges.pressed('gamepad.modeSwitch', isDown(gamepad, buttons.modeSwitch)) || modeButton;
     }
 
     return {
@@ -84,6 +89,7 @@ export class InputManager {
       reset: keyboard.actions.reset,
       spaceMouseConnected: spaceMouse !== null,
       gamepadName: gamepad?.id ?? null,
+      modeRequest: keyboard.mode ?? (modeButton ? 'next' : null),
     };
   }
 }
