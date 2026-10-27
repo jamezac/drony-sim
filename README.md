@@ -24,4 +24,4 @@ npm run dev     # abre http://localhost:5173 en Chrome o Edge
 
 ## Estado
 
-🚧 Fase 1 (MVP volable) en curso: ya se puede volar en modo Normal con el SpaceMouse o el teclado. El plan completo está en [docs/PLAN.md](docs/PLAN.md).
+🚧 Fase 2 (entrada completa) en curso: visualizador de sticks, ajustes de entrada guardados, calibración del SpaceMouse y soporte de mando en Modo 1/2. El plan completo está en [docs/PLAN.md](docs/PLAN.md).

@@ -28,6 +28,7 @@ const PROFILE_NAME = 'drony-check'; // carpeta del perfil temporal dentro de %TE
 const PAGES: { name: string; path: string }[] = [
   { name: 'index', path: '/' },
   { name: 'demo-hover', path: '/?demo=hover' },
+  { name: 'demo-sticks', path: '/?demo=sticks' },
   { name: 'devices', path: '/devices.html' },
 ];
 

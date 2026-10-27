@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { flightConfig, simConfig } from './core/config';
 import { noActions, type ControlActions } from './core/controlInput';
 import { FixedStepLoop } from './core/loop';
+import { loadInputSettings, SETTINGS_STORAGE_KEY } from './core/settings';
 import { Simulation } from './core/simulation';
 import { FLIGHT_MODE_LABELS } from './control/modes';
 import { headingOf } from './physics/drone';
@@ -18,11 +19,14 @@ import { ChaseCamera } from './render/cameras';
 import { DroneModel } from './render/droneModel';
 import { createWorld } from './render/scene';
 import { Hud } from './ui/hud';
+import { StickView } from './ui/stickView';
 import { createTuningPanel } from './ui/tuningPanel';
 import './style.css';
 
 // Fotogramas a renderizar antes de avisar a `npm run check` de que la página está lista
 const FRAMES_BEFORE_READY = 10;
+// ?demo=sticks mueve los sticks a los 4 s; damos 1,5 s más para que se vea el dron moviéndose
+const STICKS_DEMO_READY_SECONDS = 5.5;
 
 function byId<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
@@ -37,11 +41,19 @@ const drone = new DroneModel();
 world.scene.add(drone.group);
 const chase = new ChaseCamera();
 const hud = new Hud(byId('hud'));
+const stickView = new StickView(byId('hud'));
 
 const sim = new Simulation();
-const input = new InputManager(demo);
+const input = new InputManager(loadInputSettings(), demo);
 const loop = new FixedStepLoop(1 / simConfig.physicsHz, simConfig.maxFrameSeconds);
-createTuningPanel(input);
+const tuningPanel = createTuningPanel(input);
+
+// Si los ajustes cambian en otra pestaña (p. ej. al calibrar en devices.html), se aplican aquí al momento
+window.addEventListener('storage', (event) => {
+  if (event.key !== SETTINGS_STORAGE_KEY) return;
+  Object.assign(input.settings, loadInputSettings());
+  tuningPanel.refresh();
+});
 
 function resize(): void {
   const { innerWidth: width, innerHeight: height } = window;
@@ -63,6 +75,7 @@ let frames = 0;
 /** ¿La página muestra ya lo que tiene que mostrar? (lo espera `npm run check`) */
 function isReady(): boolean {
   if (frames < FRAMES_BEFORE_READY) return false;
+  if (demo === 'sticks') return sim.phase === 'flying' && sim.time > STICKS_DEMO_READY_SECONDS;
   if (demo !== 'hover') return true;
   const hovering = sim.phase === 'flying' && sim.state.velocity.length() < 0.05;
   return hovering && Math.abs(sim.altitude - flightConfig.takeoffAltitude) < 0.05;
@@ -103,7 +116,9 @@ world.renderer.setAnimationLoop((timeMs: number) => {
     horizontalSpeed: Math.hypot(velocity.x, velocity.z),
     verticalSpeed: velocity.y,
     spaceMouseConnected: frameInput.spaceMouseConnected,
+    gamepadName: frameInput.gamepadName,
   });
+  stickView.update(frameInput.sticks);
 
   world.renderer.render(world.scene, chase.camera);
   frames++;

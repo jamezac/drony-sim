@@ -8,7 +8,7 @@
   </head>
   <body>
     <main class="devices">
-      <h1>Prueba de dispositivos</h1>
+      <h1>Dispositivos y calibración</h1>
 
       <section class="card">
         <h2>Compatibilidad</h2>
@@ -17,7 +17,34 @@
       </section>
 
       <section class="card">
-        <h2>SpaceMouse</h2>
+        <h2>Gamepad API (SpaceMouse y mandos)</h2>
+        <p class="status-row" id="gamepad-status"></p>
+        <div id="gamepads"></div>
+        <div class="wizard-actions">
+          <button id="reset-max">Reiniciar máximos</button>
+          <button id="copy-gamepads" class="secondary">Copiar diagnóstico</button>
+        </div>
+        <p class="status-row" id="copy-gamepads-status"></p>
+      </section>
+
+      <section class="card">
+        <h2>Calibración del SpaceMouse</h2>
+        <div id="calibration"></div>
+      </section>
+
+      <section class="card">
+        <h2>Asistente de mapeo</h2>
+        <div id="wizard"></div>
+      </section>
+
+      <h2 class="devices-section">Diagnóstico por WebHID</h2>
+      <p class="devices-note">
+        Alternativa a la Gamepad API. Con el driver 3DxWare abierto no llega ningún dato: solo sirve para
+        diagnosticar con el driver cerrado.
+      </p>
+
+      <section class="card">
+        <h2>SpaceMouse por WebHID</h2>
         <button id="connect">Conectar SpaceMouse</button>
         <p class="status-row" id="device-status"></p>
         <p class="status-row" id="device-info"></p>
@@ -26,25 +53,12 @@
       <section class="card">
         <h2>Ejes <span id="report-rate"></span></h2>
         <div id="axes"></div>
-        <button id="reset-max">Reiniciar máximos</button>
+        <button id="reset-max-webhid">Reiniciar máximos</button>
       </section>
 
       <section class="card">
         <h2>Botones</h2>
         <p class="status-row" id="buttons"></p>
-      </section>
-
-      <section class="card">
-        <h2>Gamepad API</h2>
-        <p class="status-row" id="gamepad-status"></p>
-        <div id="gamepads"></div>
-        <button id="copy-gamepads" class="secondary">Copiar diagnóstico</button>
-        <p class="status-row" id="copy-gamepads-status"></p>
-      </section>
-
-      <section class="card">
-        <h2>Asistente de mapeo</h2>
-        <div id="wizard"></div>
       </section>
 
       <section class="card">
