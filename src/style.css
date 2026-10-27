@@ -119,7 +119,79 @@ a {
   text-shadow: 0 1px 3px rgb(0 0 0 / 80%);
 }
 
+.hud-input + .hud-input {
+  margin-top: 4px;
+}
+
+/* --- Visualizador de sticks (radio DJI, Modo 2) --- */
+
+.sticks {
+  position: absolute;
+  right: 16px;
+  bottom: 44px;
+  padding: 10px 14px 8px;
+  background: rgb(15 20 25 / 75%);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.sticks-title {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.sticks-pair {
+  display: flex;
+  gap: 16px;
+}
+
+.stick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.stick-pad {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  background:
+    linear-gradient(var(--border), var(--border)) center / 1px 100% no-repeat,
+    linear-gradient(var(--border), var(--border)) center / 100% 1px no-repeat,
+    var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.stick-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  background: var(--accent);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.stick-label {
+  color: var(--muted);
+  font-size: 11px;
+}
+
 @media (max-width: 640px) {
+  .sticks {
+    bottom: 64px;
+  }
+
+  .stick-pad {
+    width: 56px;
+    height: 56px;
+  }
+
   .hud-input-panel {
     top: auto;
     bottom: 64px;
@@ -267,4 +339,15 @@ button.secondary {
     grid-template-columns: 1fr;
     gap: 4px;
   }
+}
+
+.devices-section {
+  margin: 32px 0 4px;
+  font-size: 18px;
+}
+
+.devices-note {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 14px;
 }

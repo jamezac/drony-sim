@@ -8,6 +8,8 @@
 
 import type { AxisBinding, StickName } from '../core/config';
 import { neutralSticks, type Sticks } from '../core/controlInput';
+import type { AxisCalibration } from '../core/settings';
+import { applyCalibration } from './calibration';
 
 export interface StickShaping {
   deadzone: number;
@@ -30,30 +32,44 @@ export function applyExpo(value: number, expo: number): number {
   return (1 - expo) * value + expo * value * value * value;
 }
 
-/** Valor de un eje del gamepad según su asignación: escalado, invertido y recortado a ±1. */
-export function readAxis(axes: readonly number[], binding: AxisBinding): number {
-  const raw = (axes[binding.axis] ?? 0) / binding.fullScale;
-  return clampUnit(binding.invert ? -raw : raw);
+/**
+ * Valor de un eje según su asignación, invertido si hace falta y recortado a ±1.
+ * Si el eje está calibrado se usa la calibración; si no, se divide por `fullScale`.
+ */
+export function readAxis(
+  axes: readonly number[],
+  binding: AxisBinding,
+  calibration: readonly AxisCalibration[] | null = null,
+): number {
+  const raw = axes[binding.axis] ?? 0;
+  const axisCalibration = calibration?.[binding.axis];
+  const value = axisCalibration ? applyCalibration(raw, axisCalibration) : raw / binding.fullScale;
+  return clampUnit(binding.invert ? -value : value);
 }
 
 export function shapeStick(value: number, shaping: StickShaping): number {
   return applyExpo(applyDeadzone(clampUnit(value), shaping.deadzone), shaping.expo);
 }
 
-/** Sticks a partir de los ejes del SpaceMouse y un perfil de asignación. */
-export function spaceMouseSticks(
+/** Sticks a partir de los ejes de un dispositivo y una asignación eje → stick. */
+export function mapSticks(
   axes: readonly number[],
-  profile: Record<StickName, AxisBinding>,
+  bindings: Record<StickName, AxisBinding>,
   shaping: StickShaping,
+  calibration: readonly AxisCalibration[] | null = null,
 ): Sticks {
   const sticks = neutralSticks();
-  for (const stick of STICKS) sticks[stick] = shapeStick(readAxis(axes, profile[stick]), shaping);
+  for (const stick of STICKS) sticks[stick] = shapeStick(readAxis(axes, bindings[stick], calibration), shaping);
   return sticks;
 }
 
-/** Combina dos fuentes: en cada stick gana la que más se aparta del centro. */
-export function combineSticks(a: Sticks, b: Sticks): Sticks {
+/** Combina varias fuentes: en cada stick gana la que más se aparta del centro. */
+export function combineSticks(...sources: Sticks[]): Sticks {
   const sticks = neutralSticks();
-  for (const stick of STICKS) sticks[stick] = Math.abs(a[stick]) >= Math.abs(b[stick]) ? a[stick] : b[stick];
+  for (const source of sources) {
+    for (const stick of STICKS) {
+      if (Math.abs(source[stick]) > Math.abs(sticks[stick])) sticks[stick] = source[stick];
+    }
+  }
   return sticks;
 }

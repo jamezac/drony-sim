@@ -1,5 +1,7 @@
 // Panel de ajuste en vivo (tecla `). Modifica directamente los objetos de core/config.ts,
 // así puedes ver al instante qué hace cada ganancia del PID mientras vuelas.
+// Los PID y el modo Normal son para experimentar y se pierden al recargar. Los ajustes de
+// entrada (perfil, zona muerta, expo, modo del mando) sí se guardan en el navegador.
 //
 // Para experimentar: sube mucho "Velocidad angular · kp" y verás el dron vibrar (oscilación);
 // bájalo mucho y lo notarás "blando", tardando en corregir. Ese equilibrio es ajustar un PID.
@@ -7,11 +9,13 @@
 import GUI from 'three/addons/libs/lil-gui.module.min.js';
 import {
   controlConfig,
-  inputConfig,
+  gamepadConfig,
   modesConfig,
   spaceMouseGamepadConfig,
+  type GamepadStickMode,
   type SpaceMouseProfileName,
 } from '../core/config';
+import { defaultInputSettings, saveInputSettings } from '../core/settings';
 import type { InputManager } from '../input/inputManager';
 
 const DEG = Math.PI / 180;
@@ -28,7 +32,12 @@ function degrees<T extends object>(target: T, key: keyof T & string): Record<str
   };
 }
 
-export function createTuningPanel(input: InputManager): void {
+export interface TuningPanel {
+  /** Refresca los controles (p. ej. si los ajustes cambian desde otra pestaña) */
+  refresh(): void;
+}
+
+export function createTuningPanel(input: InputManager): TuningPanel {
   const gui = new GUI({ title: 'Ajustes (tecla `)' });
   gui.hide();
 
@@ -58,11 +67,33 @@ export function createTuningPanel(input: InputManager): void {
   normal.add(degrees(modesConfig.normal, 'maxYawRate'), 'maxYawRate', 10, 200, 5).name('Giro máx. (°/s)');
   normal.add(modesConfig.normal, 'maxAccel', 1, 15, 0.5).name('Aceleración (m/s²)');
 
-  const spaceMouse = gui.addFolder('SpaceMouse');
+  // Entrada: se guarda en el navegador al soltar cada control
+  const { settings } = input;
+  const save = (): void => void saveInputSettings(settings);
+  const entry = gui.addFolder('Entrada (se guarda)');
   const profiles = Object.keys(spaceMouseGamepadConfig.profiles) as SpaceMouseProfileName[];
-  spaceMouse.add(input, 'profile', profiles).name('Perfil');
-  spaceMouse.add(inputConfig.spaceMouse, 'deadzone', 0, 0.5, 0.01).name('Zona muerta');
-  spaceMouse.add(inputConfig.spaceMouse, 'expo', 0, 1, 0.05).name('Expo');
+  entry.add(settings, 'spaceMouseProfile', profiles).name('SpaceMouse · perfil').onFinishChange(save);
+  entry.add(settings, 'deadzone', 0, 0.5, 0.01).name('SpaceMouse · zona muerta').onFinishChange(save);
+  entry.add(settings, 'expo', 0, 1, 0.05).name('SpaceMouse · expo').onFinishChange(save);
+  const modes = Object.keys(gamepadConfig.modes) as GamepadStickMode[];
+  entry.add(settings, 'gamepadMode', modes).name('Mando · modo').onFinishChange(save);
+  entry
+    .add(
+      {
+        restablecer: () => {
+          // La calibración se conserva: se gestiona en la página de dispositivos
+          Object.assign(settings, { ...defaultInputSettings(), calibration: settings.calibration });
+          save();
+          refresh();
+        },
+      },
+      'restablecer',
+    )
+    .name('Restablecer entrada');
+
+  function refresh(): void {
+    for (const controller of gui.controllersRecursive()) controller.updateDisplay();
+  }
 
   let visible = false;
   window.addEventListener('keydown', (event) => {
@@ -70,4 +101,6 @@ export function createTuningPanel(input: InputManager): void {
     visible = !visible;
     gui.show(visible);
   });
+
+  return { refresh };
 }

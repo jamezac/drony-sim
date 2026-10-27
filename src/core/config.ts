@@ -163,6 +163,35 @@ export const spaceMouseGamepadConfig = {
   },
 };
 
+export type GamepadStickMode = 'mode2' | 'mode1';
+
+// Mando genérico (Xbox, PlayStation, radio RC en modo joystick) con el mapeo "standard" del
+// navegador: ejes 0/1 = stick izquierdo X/Y, 2/3 = stick derecho X/Y. En Y, arriba es −1.
+export const gamepadConfig = {
+  modes: {
+    // Modo 2 (DJI por defecto): izquierdo = altura y giro, derecho = avance y lateral
+    mode2: {
+      throttle: { axis: 1, invert: true, fullScale: 1 },
+      yaw: { axis: 0, invert: false, fullScale: 1 },
+      pitch: { axis: 3, invert: true, fullScale: 1 },
+      roll: { axis: 2, invert: false, fullScale: 1 },
+    },
+    // Modo 1: se intercambian altura y avance entre los dos sticks
+    mode1: {
+      pitch: { axis: 1, invert: true, fullScale: 1 },
+      yaw: { axis: 0, invert: false, fullScale: 1 },
+      throttle: { axis: 3, invert: true, fullScale: 1 },
+      roll: { axis: 2, invert: false, fullScale: 1 },
+    },
+  } satisfies Record<GamepadStickMode, Record<StickName, AxisBinding>>,
+  buttons: {
+    takeoffLand: 0, // A (Xbox) / Cruz (PlayStation)
+    toggleMotors: 1, // B (Xbox) / Círculo (PlayStation)
+  },
+};
+
+// Valores por defecto de la entrada. Los que elige el usuario se guardan en el navegador
+// (core/settings.ts) y tienen prioridad sobre estos.
 export const inputConfig = {
   spaceMouse: {
     // Zona muerta: por debajo no hace nada. Ayuda con el acoplamiento entre ejes (~40 % en pico).
@@ -170,12 +199,28 @@ export const inputConfig = {
     // Expo: suave cerca del centro para correcciones finas, completo a fondo
     expo: 0.3,
   },
+  gamepad: {
+    // Los sticks de un mando vuelven peor al centro que la tapa del SpaceMouse, pero acoplan menos
+    deadzone: 0.08,
+    expo: 0.3,
+    defaultMode: 'mode2' as GamepadStickMode,
+  },
   keyboard: {
     // Tiempo para pasar de 0 a ±1 con la tecla pulsada, y para volver a 0 al soltarla
     rampUpSeconds: 0.3,
     rampDownSeconds: 0.1,
   },
 };
+
+// Calibración del SpaceMouse (devices.html)
+export const calibrationConfig = {
+  // Tiempo con la tapa suelta para medir el centro de cada eje
+  restSeconds: 1,
+  // Recorrido mínimo hacia cada lado (desde el centro) para dar un eje por calibrado
+  minSpan: 0.5,
+  // Por debajo de este recorrido no se divide (evita amplificar ruido de un eje sin datos)
+  minUsableSpan: 0.05,
+} as const;
 
 // SpaceMouse por WebHID: alternativa, solo funciona con el driver 3DxWare cerrado
 export const spaceMouseConfig = {

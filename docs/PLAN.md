@@ -311,6 +311,8 @@ Con esto WSL y Windows comparten `localhost` en los dos sentidos.
 
 **Hecho cuando:** puedes mantener el hover y hacer movimientos lentos de 1 eje sin mover los otros.
 
+**Decisión (al empezar la fase):** el filtro anti-acoplamiento se aplaza. En las pruebas de vuelo de la fase 1, la zona muerta (0,12) ya evita que el dron derive al subir o bajar. Prioridades: visualizador de sticks → ajustes guardados → calibración → mando genérico.
+
 ---
 
 ### Fase 3: HUD estilo DJI Fly y modos Cine / Sport / ATTI

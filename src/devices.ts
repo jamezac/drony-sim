@@ -1,9 +1,11 @@
-// Página de prueba del SpaceMouse: muestra ejes, botones y reports en crudo para
-// comprobar que WebHID funciona y averiguar signos y rangos de cada eje.
+// Página de dispositivos: prueba del SpaceMouse (WebHID y Gamepad API), calibración y
+// asistente de mapeo. Muestra ejes, botones y reports en crudo para diagnosticar problemas.
 
 import { spaceMouseConfig } from './core/config';
 import { isWebHidSupported, SpaceMouse } from './input/spaceMouse';
 import { normalizeAxis, type SpaceMouseAxes } from './input/spaceMouseReport';
+import { createAxisRow, setBar, type AxisRow } from './ui/axisBars';
+import { CalibrationPanel } from './ui/calibrationPanel';
 import { MappingWizard } from './ui/mappingWizard';
 import './style.css';
 
@@ -50,37 +52,6 @@ setStatus(
 );
 
 // --- Filas de ejes ---
-interface AxisRow {
-  fill: HTMLElement;
-  value: HTMLElement;
-}
-
-function createAxisRow(container: HTMLElement, label: string): AxisRow {
-  const row = document.createElement('div');
-  row.className = 'axis';
-  const name = document.createElement('span');
-  name.textContent = label;
-  const bar = document.createElement('div');
-  bar.className = 'axis-bar';
-  const fill = document.createElement('div');
-  fill.className = 'axis-fill';
-  bar.append(fill);
-  const value = document.createElement('span');
-  value.className = 'axis-value';
-  row.append(name, bar, value);
-  container.append(row);
-  return { fill, value };
-}
-
-/** Barra centrada: crece a la derecha si es positivo, a la izquierda si es negativo. */
-function setBar(row: AxisRow, n: number, text: string): void {
-  // Recortamos a ±1: hay ejes (hat switch) que reposan en ≈1,286 y se saldrían del medidor
-  const clamped = Math.max(-1, Math.min(1, n));
-  row.fill.style.left = `${50 + Math.min(clamped, 0) * 50}%`;
-  row.fill.style.width = `${Math.abs(clamped) * 50}%`;
-  row.value.textContent = text;
-}
-
 const axisRows = new Map<keyof SpaceMouseAxes, AxisRow>();
 const axesContainer = byId('axes');
 for (const { key, label } of AXES) {
@@ -89,7 +60,7 @@ for (const { key, label } of AXES) {
 
 // Máximo absoluto visto en cada eje: sirve para ajustar axisFullScale
 const maxSeen: SpaceMouseAxes = { tx: 0, ty: 0, tz: 0, rx: 0, ry: 0, rz: 0 };
-byId('reset-max').addEventListener('click', () => {
+byId('reset-max-webhid').addEventListener('click', () => {
   for (const { key } of AXES) maxSeen[key] = 0;
 });
 
@@ -221,7 +192,8 @@ byId('copy-gamepads').addEventListener('click', () => {
     .catch(() => setStatus(copyGamepadsStatus, false, 'No se pudo copiar al portapapeles'));
 });
 
-// --- Asistente de mapeo (usa la Gamepad API) ---
+// --- Calibración y asistente de mapeo (usan la Gamepad API) ---
+const calibration = new CalibrationPanel(byId('calibration'));
 const wizard = new MappingWizard(byId('wizard'));
 
 // --- Refresco de la vista una vez por frame (no por report) ---
@@ -239,6 +211,7 @@ function render(nowMs: number): void {
   }
 
   renderGamepads();
+  calibration.update(nowMs);
   wizard.update(nowMs);
 
   const labels: string[] = [];

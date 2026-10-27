@@ -12,6 +12,7 @@ export interface HudData {
   horizontalSpeed: number;
   verticalSpeed: number;
   spaceMouseConnected: boolean;
+  gamepadName: string | null;
 }
 
 function element(tag: string, className: string, text = ''): HTMLElement {
@@ -35,6 +36,7 @@ export class Hud {
   private readonly horizontalSpeed = metric('V.H');
   private readonly verticalSpeed = metric('V.V');
   private readonly input = element('p', 'hud-input');
+  private readonly gamepad = element('p', 'hud-input hud-input-on');
 
   constructor(root: HTMLElement) {
     const panel = element('div', 'hud-panel');
@@ -43,7 +45,7 @@ export class Hud {
     panel.append(element('h1', 'hud-title', 'Drony Sim'), this.status, metrics);
 
     const inputPanel = element('div', 'hud-panel hud-input-panel');
-    inputPanel.append(this.input);
+    inputPanel.append(this.input, this.gamepad);
 
     const help = element(
       'p',
@@ -69,5 +71,8 @@ export class Hud {
       ? '● SpaceMouse conectado'
       : '○ SpaceMouse: mueve la tapa para activarlo';
     this.input.classList.toggle('hud-input-on', data.spaceMouseConnected);
+    // El nombre que da el navegador incluye vendor/product: nos quedamos con la parte legible
+    this.gamepad.hidden = data.gamepadName === null;
+    this.gamepad.textContent = `● Mando: ${data.gamepadName?.split('(')[0].trim() ?? ''}`;
   }
 }
