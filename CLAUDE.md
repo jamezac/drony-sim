@@ -20,7 +20,7 @@ Prioridad: **que la sensación de vuelo se parezca a un dron de consumo real** (
 - **Render 3D:** [Three.js](https://threejs.org/)
 - **Build / dev server:** Vite
 - **Física:** modelo propio simplificado de cuadricóptero (sin motor de física externo al inicio). Si se necesitan colisiones complejas, evaluar `cannon-es` o `rapier3d`.
-- **Entrada:** teclado + **Gamepad API** del navegador (mandos Xbox/PS y radios RC por USB como RadioMaster/Jumper en modo joystick).
+- **Entrada:** el control principal es un **SpaceMouse Wireless** (3Dconnexion, receptor universal `256f:c652`) leído con la **Gamepad API**. Windows lo expone como un "gamepad" de 6 ejes y funciona con el driver 3DxWare abierto. Con **WebHID** no llega ningún dato mientras 3DxWare está en marcha, así que solo queda como alternativa (`input/spaceMouse.ts`). El teclado es el respaldo. Ojo: el receptor aparece como **varios** gamepads. El SpaceMouse es el que tiene 6 ejes (`pickSpaceMousePad`). El mapeo y los perfiles están en `spaceMouseGamepadConfig` (`core/config.ts`). La misma Gamepad API sirve para mandos y radios RC por USB en el futuro.
 - **Tests:** Vitest (especialmente para física y controladores).
 - **Entorno:** desarrollo en WSL2 (Linux); el simulador se abre en el navegador de Windows en `http://localhost:5173`.
 
@@ -32,11 +32,16 @@ npm run dev        # servidor de desarrollo (Vite)
 npm run build      # build de producción
 npm run test       # tests con Vitest
 npm run lint       # ESLint
+npm run check      # Chrome de Windows invisible: capturas en .check/ + errores de consola
 ```
 
-> Nota: el proyecto aún no está inicializado. El primer paso es crear el esqueleto con `npm create vite@latest . -- --template vanilla-ts` e instalar `three` y `@types/three`.
+- Páginas: `http://localhost:5173/` (simulador) y `/devices.html` (prueba y calibración de dispositivos).
+- `npm run check` usa `playwright-core` (no descarga navegadores) y se conecta por CDP al Chrome de Windows. Requiere WSL con `networkingMode=mirrored`. Hay que ejecutarlo tras cada mejora grande, revisar las capturas y corregir, con un **máximo de 3 rondas**. Para añadir páginas, edita el array `PAGES` en `scripts/check.ts`. Las páginas avisan de que están listas con `window.__dronyReady = true`.
+- El plan completo por fases está en [docs/PLAN.md](docs/PLAN.md).
 
 ## Estructura prevista
+
+Resumen; la versión completa está en `docs/PLAN.md`.
 
 ```
 src/
@@ -94,8 +99,9 @@ tests/
 
 ## Hoja de ruta
 
-1. **MVP:** escena con suelo y cielo, dron como caja/modelo simple, física básica, modo Normal, teclado, cámara en tercera persona.
-2. Soporte de gamepad / radio RC con calibración, expo y zona muerta.
+0. **Esqueleto:** Vite + herramientas, página de prueba del SpaceMouse y `npm run check`.
+1. **MVP:** escena con suelo y cielo, dron como caja/modelo simple, física básica, modo Normal, **SpaceMouse** + teclado, cámara en tercera persona.
+2. Entrada completa: calibración, expo, zona muerta, anti-acoplamiento del SpaceMouse, perfiles, visualizador de sticks y gamepad / radio RC.
 3. HUD de telemetría y modos Cine / Sport / ATTI.
 4. Viento y ráfagas, efecto suelo, batería que se agota.
 5. Lecciones de entrenamiento: hover en un punto, cuadrado, círculo, ocho, nose-in, aterrizaje de precisión.
