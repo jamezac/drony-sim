@@ -1,56 +1,111 @@
-// Fase 0: escena mínima para comprobar que Three.js funciona. En la fase 1 se convierte en el simulador.
+// Punto de entrada del simulador: une entrada, simulación (paso fijo) y render.
+//
+// Cada frame:
+//   1. Se leen los sticks y botones (una vez por frame).
+//   2. La física avanza en pasos fijos de 1/240 s (pueden ser 0, 1, 4, 5... según el frame).
+//   3. Se dibuja interpolando entre los dos últimos pasos de física.
 
 import * as THREE from 'three';
+import { flightConfig, simConfig } from './core/config';
+import { noActions, type ControlActions } from './core/controlInput';
+import { FixedStepLoop } from './core/loop';
+import { Simulation } from './core/simulation';
+import { FLIGHT_MODE_LABELS } from './control/modes';
+import { headingOf } from './physics/drone';
+import { parseDemoName } from './input/demoInput';
+import { InputManager } from './input/inputManager';
+import { ChaseCamera } from './render/cameras';
+import { DroneModel } from './render/droneModel';
+import { createWorld } from './render/scene';
+import { Hud } from './ui/hud';
+import { createTuningPanel } from './ui/tuningPanel';
 import './style.css';
 
 // Fotogramas a renderizar antes de avisar a `npm run check` de que la página está lista
 const FRAMES_BEFORE_READY = 10;
 
-const canvas = document.querySelector<HTMLCanvasElement>('#scene');
-if (!canvas) throw new Error('Falta el <canvas id="scene">');
+function byId<T extends HTMLElement>(id: string): T {
+  const element = document.getElementById(id);
+  if (!element) throw new Error(`Falta el elemento #${id}`);
+  return element as T;
+}
 
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+const demo = parseDemoName(new URLSearchParams(window.location.search).get('demo'));
 
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87b5e0);
+const world = createWorld(byId<HTMLCanvasElement>('scene'));
+const drone = new DroneModel();
+world.scene.add(drone.group);
+const chase = new ChaseCamera();
+const hud = new Hud(byId('hud'));
 
-const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
-camera.position.set(3, 2.5, 4);
-camera.lookAt(0, 0.5, 0);
-
-scene.add(new THREE.HemisphereLight(0xdfefff, 0x4a5a3a, 1.2));
-const sun = new THREE.DirectionalLight(0xffffff, 2);
-sun.position.set(5, 8, 3);
-scene.add(sun);
-
-const cube = new THREE.Mesh(
-  new THREE.BoxGeometry(1, 1, 1),
-  new THREE.MeshStandardMaterial({ color: 0xff8a3d }),
-);
-cube.position.y = 0.8;
-scene.add(cube);
-
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(20, 20),
-  new THREE.MeshStandardMaterial({ color: 0x5f8a4a }),
-);
-ground.rotation.x = -Math.PI / 2;
-scene.add(ground);
+const sim = new Simulation();
+const input = new InputManager(demo);
+const loop = new FixedStepLoop(1 / simConfig.physicsHz, simConfig.maxFrameSeconds);
+createTuningPanel(input);
 
 function resize(): void {
   const { innerWidth: width, innerHeight: height } = window;
-  renderer.setSize(width, height, false);
-  camera.aspect = width / height;
-  camera.updateProjectionMatrix();
+  world.renderer.setSize(width, height, false);
+  chase.setAspect(width / height);
 }
 window.addEventListener('resize', resize);
 resize();
+chase.snap(sim.state.position, headingOf(sim.state.orientation));
 
+// Pose interpolada que se dibuja
+const pose = { position: new THREE.Vector3(), orientation: new THREE.Quaternion(), motorThrust: sim.state.motorThrust };
+
+// Acciones pulsadas que aún no ha consumido ningún paso de física (un frame puede no tener pasos)
+let pendingActions: ControlActions = noActions();
+let lastTimeMs: number | null = null;
 let frames = 0;
-renderer.setAnimationLoop((timeMs) => {
-  const t = timeMs / 1000;
-  cube.rotation.set(t * 0.4, t * 0.7, 0);
-  renderer.render(scene, camera);
-  if (++frames === FRAMES_BEFORE_READY) window.__dronyReady = true;
+
+/** ¿La página muestra ya lo que tiene que mostrar? (lo espera `npm run check`) */
+function isReady(): boolean {
+  if (frames < FRAMES_BEFORE_READY) return false;
+  if (demo !== 'hover') return true;
+  const hovering = sim.phase === 'flying' && sim.state.velocity.length() < 0.05;
+  return hovering && Math.abs(sim.altitude - flightConfig.takeoffAltitude) < 0.05;
+}
+
+world.renderer.setAnimationLoop((timeMs: number) => {
+  const frameSeconds = lastTimeMs === null ? 0 : (timeMs - lastTimeMs) / 1000;
+  lastTimeMs = timeMs;
+
+  const frameInput = input.sample(frameSeconds);
+  if (frameInput.reset) {
+    sim.reset();
+    chase.snap(sim.state.position, headingOf(sim.state.orientation));
+  }
+  pendingActions = {
+    toggleMotors: pendingActions.toggleMotors || frameInput.actions.toggleMotors,
+    takeoffLand: pendingActions.takeoffLand || frameInput.actions.takeoffLand,
+  };
+
+  const alpha = loop.advance(frameSeconds, (dt) => {
+    sim.step(dt, { sticks: frameInput.sticks, actions: pendingActions });
+    pendingActions = noActions();
+  });
+
+  // Interpolación entre el paso anterior y el actual: movimiento suave a cualquier fps
+  pose.position.lerpVectors(sim.previous.position, sim.state.position, alpha);
+  pose.orientation.slerpQuaternions(sim.previous.orientation, sim.state.orientation, alpha);
+  drone.update(pose, frameSeconds);
+  chase.update(pose.position, headingOf(pose.orientation), frameSeconds);
+  world.followWithSun(pose.position);
+
+  const { velocity, position } = sim.state;
+  hud.update({
+    mode: FLIGHT_MODE_LABELS[sim.mode],
+    phase: sim.phase,
+    altitude: sim.altitude,
+    distance: Math.hypot(position.x, position.z),
+    horizontalSpeed: Math.hypot(velocity.x, velocity.z),
+    verticalSpeed: velocity.y,
+    spaceMouseConnected: frameInput.spaceMouseConnected,
+  });
+
+  world.renderer.render(world.scene, chase.camera);
+  frames++;
+  if (!window.__dronyReady && isReady()) window.__dronyReady = true;
 });

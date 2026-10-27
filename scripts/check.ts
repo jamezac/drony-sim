@@ -17,6 +17,8 @@ const CHROME_PATH =
 const VITE_PORT = 5174; // distinto del 5173 de `npm run dev` para no chocar
 const CDP_PORT = 9223;
 const VIEWPORT = { width: 1280, height: 720 };
+// Escala de pantalla como la de Windows al 150 %: con escala 1 se escapan fallos de tamaño del canvas
+const DEVICE_SCALE_FACTOR = 1.5;
 const CHROME_START_TIMEOUT_MS = 15_000;
 const READY_TIMEOUT_MS = 15_000;
 const OUT_DIR = '.check';
@@ -25,6 +27,7 @@ const PROFILE_NAME = 'drony-check'; // carpeta del perfil temporal dentro de %TE
 // Páginas a revisar. Crece con cada fase del plan.
 const PAGES: { name: string; path: string }[] = [
   { name: 'index', path: '/' },
+  { name: 'demo-hover', path: '/?demo=hover' },
   { name: 'devices', path: '/devices.html' },
 ];
 
@@ -98,7 +101,7 @@ async function waitForCdp(chrome: ChildProcess): Promise<void> {
 
 async function checkPage(browser: Browser, baseUrl: string, name: string, path: string): Promise<PageResult> {
   const result: PageResult = { name, errors: [], warnings: [], screenshot: `${OUT_DIR}/${name}.png` };
-  const context = await browser.newContext({ viewport: VIEWPORT });
+  const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: DEVICE_SCALE_FACTOR });
   const page = await context.newPage();
 
   page.on('console', (message) => {
