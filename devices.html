@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dispositivos · Drony Sim</title>
+  </head>
+  <body>
+    <main class="devices">
+      <h1>Prueba de dispositivos</h1>
+
+      <section class="card">
+        <h2>Compatibilidad</h2>
+        <p class="status-row" id="webhid-status"></p>
+        <p class="status-row" id="secure-status"></p>
+      </section>
+
+      <section class="card">
+        <h2>SpaceMouse</h2>
+        <button id="connect">Conectar SpaceMouse</button>
+        <p class="status-row" id="device-status"></p>
+        <p class="status-row" id="device-info"></p>
+      </section>
+
+      <section class="card">
+        <h2>Ejes <span id="report-rate"></span></h2>
+        <div id="axes"></div>
+        <button id="reset-max">Reiniciar máximos</button>
+      </section>
+
+      <section class="card">
+        <h2>Botones</h2>
+        <p class="status-row" id="buttons"></p>
+      </section>
+
+      <section class="card">
+        <h2>Gamepad API</h2>
+        <p class="status-row" id="gamepad-status"></p>
+        <div id="gamepads"></div>
+        <button id="copy-gamepads" class="secondary">Copiar diagnóstico</button>
+        <p class="status-row" id="copy-gamepads-status"></p>
+      </section>
+
+      <section class="card">
+        <h2>Asistente de mapeo</h2>
+        <div id="wizard"></div>
+      </section>
+
+      <section class="card">
+        <h2>Reports en crudo</h2>
+        <pre class="log" id="log"></pre>
+      </section>
+
+      <p><a href="/">← Volver al simulador</a></p>
+    </main>
+    <script type="module" src="/src/devices.ts"></script>
+  </body>
+</html>
