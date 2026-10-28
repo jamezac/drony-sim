@@ -1,5 +1,5 @@
 // Teclado como respaldo (Modo 2): W/S altura, A/D giro, flechas adelante/atrás/lados, 1-4 modo,
-// H vuelta a casa, V nivel de viento, C cámara.
+// H vuelta a casa, V nivel de viento, C cámara, Q/Z gimbal (arriba/abajo), P miniatura FPV.
 // Una tecla es todo o nada, así que el valor sube en rampa mientras está pulsada: se parece
 // más a empujar un stick poco a poco y evita tirones bruscos del dron.
 
@@ -20,7 +20,11 @@ export const ACTION_KEYS = {
   reset: 'KeyR',
   cycleWind: 'KeyV',
   toggleCamera: 'KeyC',
+  togglePip: 'KeyP',
 } as const;
+
+/** Inclinación del gimbal mientras se mantienen pulsadas: Q arriba, Z abajo */
+const GIMBAL_KEYS = { up: 'KeyQ', down: 'KeyZ' } as const;
 
 type ActionName = keyof typeof ACTION_KEYS;
 
@@ -37,6 +41,7 @@ const CAPTURED_KEYS = new Set<string>([
   ...Object.values(STICK_KEYS).flatMap(({ positive, negative }) => [positive, negative]),
   ...Object.values(ACTION_KEYS),
   ...Object.keys(MODE_KEYS),
+  ...Object.values(GIMBAL_KEYS),
 ]);
 
 /** Acerca `current` a `target`: tarda `upSeconds` en ir de 0 a ±1 y `downSeconds` en volver a 0. */
@@ -54,6 +59,8 @@ export interface KeyboardSample {
   actions: Record<ActionName, boolean>;
   /** Modo elegido con 1-4 desde la última muestra, o null */
   mode: FlightModeName | null;
+  /** Gimbal: +1 arriba, −1 abajo, 0 quieto */
+  gimbal: number;
 }
 
 export class KeyboardInput {
@@ -86,6 +93,7 @@ export class KeyboardInput {
     }
     const modeKey = Object.keys(MODE_KEYS).find((code) => this.justPressed.has(code));
     this.justPressed.clear();
-    return { sticks: { ...this.sticks }, actions, mode: modeKey ? MODE_KEYS[modeKey] : null };
+    const gimbal = (this.pressed.has(GIMBAL_KEYS.up) ? 1 : 0) - (this.pressed.has(GIMBAL_KEYS.down) ? 1 : 0);
+    return { sticks: { ...this.sticks }, actions, mode: modeKey ? MODE_KEYS[modeKey] : null, gimbal };
   }
 }

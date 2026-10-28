@@ -129,6 +129,8 @@ export function createWorld(canvas: HTMLCanvasElement): World {
   sun.shadow.bias = -0.0005;
   sun.shadow.normalBias = 0.02;
   sun.shadow.radius = 3; // bordes de sombra algo suaves
+  // El dron está en su propia capa (la FPV no lo ve), pero tiene que seguir dando sombra
+  sun.shadow.camera.layers.enable(renderConfig.droneLayer);
   scene.add(sun, sun.target);
   const { x, y, z } = renderConfig.sunOffset;
   const sunOffset = new THREE.Vector3(x, y, z);

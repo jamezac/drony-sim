@@ -5,7 +5,7 @@
 // dron es la base del pilotaje (sobre todo en "nose-in", cuando viene hacia ti).
 
 import * as THREE from 'three';
-import { droneConfig } from '../core/config';
+import { droneConfig, renderConfig } from '../core/config';
 import { MOTOR_COUNT, MOTOR_YAW_DIRECTION, motorPositions } from '../physics/drone';
 
 // Velocidad de giro VISIBLE de las hélices a empuje máximo. La real (~25 000 rpm) se vería
@@ -71,6 +71,9 @@ export class DroneModel {
 
       this.group.add(arm, motor, light, prop);
     });
+
+    // Capa propia: la ven las cámaras exteriores y la sombra, pero no la FPV (está dentro del dron)
+    this.group.traverse((object) => object.layers.set(renderConfig.droneLayer));
   }
 
   update(pose: DronePose, dt: number): void {

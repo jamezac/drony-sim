@@ -308,6 +308,8 @@ export const gamepadConfig = {
     toggleMotors: 1, // B (Xbox) / Círculo (PlayStation)
     modeSwitch: 3, // Y (Xbox) / Triángulo (PlayStation)
     returnHome: 2, // X (Xbox) / Cuadrado (PlayStation)
+    gimbalDown: 4, // LB / L1, como la rueda del gimbal de la radio DJI
+    gimbalUp: 5, // RB / R1
   },
 };
 
@@ -399,4 +401,34 @@ export const renderConfig = {
   // Posición del sol respecto al dron. Casi vertical: la sombra cae justo debajo y sirve de
   // referencia de altura al aterrizar (a 1,2 m se desplaza solo ~0,2 m)
   sunOffset: { x: 3, y: 20, z: 2 }, // m
+  // Capa de render del dron: la ven las cámaras exteriores y la sombra, pero no la FPV
+  // (la cámara está pegada al dron y vería su propio cuerpo por dentro)
+  droneLayer: 1,
+  // Imagen en miniatura (PiP) de la FPV, abajo a la derecha encima de los sticks (px CSS)
+  pip: { width: 320, height: 180, right: 16, bottom: 210, maxWidthFraction: 0.35 },
 } as const;
+
+// ---------------------------------------------------------------------------
+// Cámara FPV y gimbal (como la de un DJI Mini: 3 ejes, de −90° a +20°)
+// ---------------------------------------------------------------------------
+
+export const gimbalConfig = {
+  // Campo de visión vertical. Un Mini tiene ~83° en diagonal, que en 16:9 son ~50° en vertical.
+  fov: 50, // grados
+  // Posición de la cámara respecto al centro del dron: bajo el morro (ejes del cuerpo, m)
+  offset: { x: 0, y: -0.012, z: -0.08 },
+  minPitch: -90 * DEG, // mirando en vertical hacia abajo
+  maxPitch: 20 * DEG, // algo hacia arriba
+  pitchRate: 60 * DEG, // rad/s con la tecla (o la rueda) a fondo
+  // El gimbal sigue el giro del dron con algo de retraso (1/s): la imagen no da tirones al girar
+  yawStiffness: 8,
+};
+
+// Ajustes de la FPV que se pueden cambiar en vivo (panel de ajuste)
+export const fpvSettings = {
+  /**
+   * Gimbal estabilizado (DJI): el horizonte siempre recto. Desactivado: cámara fija al cuerpo,
+   * como en un dron FPV de carreras: el horizonte se inclina con el dron.
+   */
+  stabilized: true,
+};

@@ -36,6 +36,8 @@ const PAGES: { name: string; path: string }[] = [
   { name: 'lesson-menu', path: '/?menu=lecciones' },
   { name: 'lesson-hover', path: '/?lesson=hover&demo=hover' },
   { name: 'lesson-square', path: '/?lesson=cuadrado' },
+  { name: 'fpv', path: '/?camera=fpv&demo=sticks' },
+  { name: 'pilot-pip', path: '/?camera=pilot&demo=sticks' },
   { name: 'devices', path: '/devices.html' },
 ];
 
