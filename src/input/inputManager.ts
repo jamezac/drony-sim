@@ -17,6 +17,10 @@ export interface FrameInput extends ControlInput {
   cycleWind: boolean;
   /** Cambiar de cámara (tecla C) */
   toggleCamera: boolean;
+  /** Mostrar u ocultar la miniatura de la FPV (tecla P) */
+  togglePip: boolean;
+  /** Gimbal: +1 arriba, −1 abajo, 0 quieto (teclas Q/Z o LB/RB del mando) */
+  gimbal: number;
   spaceMouseConnected: boolean;
   /** Nombre del mando genérico conectado, o null */
   gamepadName: string | null;
@@ -59,6 +63,8 @@ export class InputManager {
         reset: false,
         cycleWind: false,
         toggleCamera: false,
+        togglePip: false,
+        gimbal: 0,
         spaceMouseConnected: false,
         gamepadName: null,
         modeRequest: null,
@@ -74,6 +80,7 @@ export class InputManager {
     let toggleMotors = keyboard.actions.toggleMotors;
     let returnHome = keyboard.actions.returnHome;
     let modeButton = false;
+    let gimbal = keyboard.gimbal;
 
     if (spaceMouse) {
       const { profiles, buttons } = spaceMouseGamepadConfig;
@@ -95,6 +102,8 @@ export class InputManager {
       toggleMotors = this.edges.pressed('gamepad.toggleMotors', isDown(gamepad, buttons.toggleMotors)) || toggleMotors;
       modeButton = this.edges.pressed('gamepad.modeSwitch', isDown(gamepad, buttons.modeSwitch)) || modeButton;
       returnHome = this.edges.pressed('gamepad.returnHome', isDown(gamepad, buttons.returnHome)) || returnHome;
+      if (isDown(gamepad, buttons.gimbalUp)) gimbal = 1;
+      if (isDown(gamepad, buttons.gimbalDown)) gimbal = -1;
     }
 
     return {
@@ -103,6 +112,8 @@ export class InputManager {
       reset: keyboard.actions.reset,
       cycleWind: keyboard.actions.cycleWind,
       toggleCamera: keyboard.actions.toggleCamera,
+      togglePip: keyboard.actions.togglePip,
+      gimbal,
       spaceMouseConnected: spaceMouse !== null,
       gamepadName: gamepad?.id ?? null,
       modeRequest: keyboard.mode ?? (modeButton ? 'next' : null),

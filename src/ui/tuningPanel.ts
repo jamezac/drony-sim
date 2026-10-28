@@ -1,4 +1,4 @@
-// Panel de ajuste en vivo (tecla `). Modifica directamente los objetos de core/config.ts,
+// Panel de ajuste en vivo (tecla bajo Esc). Modifica directamente los objetos de core/config.ts,
 // así puedes ver al instante qué hace cada ganancia del PID mientras vuelas.
 // Los PID y el modo Normal son para experimentar y se pierden al recargar. Los ajustes de
 // entrada (perfil, zona muerta, expo, modo del mando) sí se guardan en el navegador.
@@ -9,6 +9,7 @@
 import GUI from 'three/addons/libs/lil-gui.module.min.js';
 import {
   controlConfig,
+  fpvSettings,
   gamepadConfig,
   modesConfig,
   spaceMouseGamepadConfig,
@@ -18,6 +19,17 @@ import {
 import { defaultInputSettings, saveInputSettings } from '../core/settings';
 import { FLIGHT_MODE_LABELS, MODE_CYCLE } from '../control/modes';
 import type { InputManager } from '../input/inputManager';
+import { keyLabelFrom } from './keyLabels';
+
+/**
+ * Tecla que abre el panel: la de debajo de Esc, la de la "consola de desarrollador" en muchos
+ * juegos. Se identifica por su posición física; lo que lleva impreso depende del teclado (ui/keyLabels).
+ */
+export const SETTINGS_KEY_CODE = 'Backquote';
+
+function panelTitle(keyLabel: string): string {
+  return `Ajustes (${keyLabel})`;
+}
 
 const DEG = Math.PI / 180;
 
@@ -36,10 +48,12 @@ function degrees<T extends object>(target: T, key: keyof T & string): Record<str
 export interface TuningPanel {
   /** Refresca los controles (p. ej. si los ajustes cambian desde otra pestaña) */
   refresh(): void;
+  /** Muestra en el título el símbolo de la tecla en el teclado del usuario */
+  setKeyLabel(label: string): void;
 }
 
 export function createTuningPanel(input: InputManager): TuningPanel {
-  const gui = new GUI({ title: 'Ajustes (tecla `)' });
+  const gui = new GUI({ title: panelTitle(keyLabelFrom(null, SETTINGS_KEY_CODE)) });
   gui.hide();
 
   const pid = gui.addFolder('PID');
@@ -102,12 +116,16 @@ export function createTuningPanel(input: InputManager): TuningPanel {
     for (const controller of gui.controllersRecursive()) controller.updateDisplay();
   }
 
+  const fpv = gui.addFolder('Cámara FPV');
+  fpv.add(fpvSettings, 'stabilized').name('Gimbal estabilizado (DJI)');
+  fpv.close();
+
   let visible = false;
   window.addEventListener('keydown', (event) => {
-    if (event.code !== 'Backquote') return;
+    if (event.code !== SETTINGS_KEY_CODE) return;
     visible = !visible;
     gui.show(visible);
   });
 
-  return { refresh };
+  return { refresh, setKeyLabel: (label) => gui.title(panelTitle(label)) };
 }

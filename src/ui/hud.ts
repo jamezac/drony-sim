@@ -6,7 +6,9 @@ import { FLIGHT_PHASE_LABELS, type FlightPhase } from '../control/flightState';
 import { FLIGHT_MODE_LABELS, type FlightModeName } from '../control/modes';
 import { RTH_STAGE_LABELS, type RthStage } from '../control/rth';
 import { CAMERA_LABELS, type CameraMode } from '../render/cameras';
+import { keyLabelFrom } from './keyLabels';
 import { Radar } from './radar';
+import { SETTINGS_KEY_CODE } from './tuningPanel';
 
 const WIND_LEVEL_LABELS: Record<WindLevel, string> = {
   calm: 'calma',
@@ -41,6 +43,8 @@ export interface HudData {
   spaceMouseConnected: boolean;
   gamepadName: string | null;
   camera: CameraMode;
+  /** Inclinación del gimbal (grados), se muestra en la FPV */
+  gimbalDegrees: number;
 }
 
 function element(tag: string, className: string, text = ''): HTMLElement {
@@ -75,6 +79,9 @@ export class Hud {
   private readonly input = element('p', 'hud-input');
   private readonly gamepad = element('p', 'hud-input hud-input-on');
   private readonly camera = element('p', 'hud-input');
+  /** Símbolo de la tecla de ajustes en el teclado del usuario (º, |, `...) */
+  // Con aspecto de tecla: símbolos como | se confundirían con los separadores del texto
+  private readonly settingsKey = element('kbd', 'hud-key', keyLabelFrom(null, SETTINGS_KEY_CODE));
   private readonly radar: Radar;
 
   constructor(root: HTMLElement, onOpenLessons: () => void) {
@@ -92,18 +99,27 @@ export class Hud {
       'p',
       'hud-help',
       'Espacio / botón izq.: despegar o aterrizar · E: motores · H: volver a casa · 1-4 / botón dcho.: modo · ' +
-        'W/S: altura · A/D: giro · ↑↓←→: mover · C: cámara · V: viento · R: reiniciar · G: gráfica · `: ajustes · ',
+        'W/S: altura · A/D: giro · ↑↓←→: mover · C: cámara · Q/Z: gimbal · P: miniatura · V: viento · R: reiniciar · ' +
+        'G: gráfica · ',
     );
     const lessons = element('button', 'link-button', 'Lecciones (L)');
     lessons.addEventListener('click', onOpenLessons);
     const devicesLink = document.createElement('a');
     devicesLink.href = '/devices.html';
     devicesLink.textContent = 'Dispositivos';
-    help.append(lessons, ' · ', devicesLink);
+    // La tecla y su descripción, siempre en la misma línea
+    const settings = element('span', 'hud-nowrap');
+    settings.append(this.settingsKey, ': ajustes');
+    help.append(settings, ' · ', lessons, ' · ', devicesLink);
 
     this.center.append(this.warnings);
     root.append(panel, this.center, inputPanel, help);
     this.radar = new Radar(root);
+  }
+
+  /** Pone el símbolo real de la tecla de ajustes (se conoce de forma asíncrona, ver ui/keyLabels) */
+  setSettingsKeyLabel(label: string): void {
+    this.settingsKey.textContent = label;
   }
 
   update(data: HudData): void {
@@ -140,7 +156,8 @@ export class Hud {
     // El nombre que da el navegador incluye vendor/product: nos quedamos con la parte legible
     this.gamepad.hidden = data.gamepadName === null;
     this.gamepad.textContent = `● Mando: ${data.gamepadName?.split('(')[0].trim() ?? ''}`;
-    this.camera.textContent = `${CAMERA_LABELS[data.camera]} (C)`;
+    const gimbal = data.camera === 'fpv' ? ` · gimbal ${Math.round(data.gimbalDegrees)}° (Q/Z)` : '';
+    this.camera.textContent = `${CAMERA_LABELS[data.camera]}${gimbal} (C)`;
 
     this.radar.update(data.x, data.z, data.heading, data.windX, data.windZ);
   }
