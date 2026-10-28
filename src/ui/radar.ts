@@ -6,35 +6,10 @@
 // - Morro hacia ti (nose-in): todo se ve invertido; adelante lo acerca y su derecha es tu izquierda.
 //   Es de lo que más cuesta al aprender, y por eso el radar lo avisa.
 
+import { ORIENTATION_LABELS, orientationToPilot } from '../training/orientation';
+
 const RANGES = [10, 25, 50, 100, 200, 500]; // m: escala del radar según lo lejos que esté
 const SIZE = 150; // px CSS
-const NOSE_IN_COS = Math.cos(Math.PI / 4); // dentro de ±45° cuenta como morro/cola hacia ti
-const NEAR_PILOT = 2; // m: tan cerca que no tiene sentido hablar de orientación
-
-export type Orientation = 'near' | 'noseIn' | 'tailIn' | 'side';
-
-export const ORIENTATION_LABELS: Record<Orientation, string> = {
-  near: 'Sobre el punto de despegue',
-  noseIn: 'Morro hacia ti (nose-in): los controles se ven invertidos',
-  tailIn: 'Cola hacia ti: los controles coinciden con lo que ves',
-  side: 'De lado respecto a ti',
-};
-
-/**
- * ¿Hacia dónde apunta el morro respecto al piloto (en el origen)?
- * @param x posición del dron en el mundo
- * @param z posición del dron en el mundo
- * @param heading rumbo del dron (rad; 0 = morro hacia −Z)
- */
-export function orientationToPilot(x: number, z: number, heading: number): Orientation {
-  const distance = Math.hypot(x, z);
-  if (distance < NEAR_PILOT) return 'near';
-  // Coseno del ángulo entre el morro y la dirección dron → piloto
-  const cos = (-Math.sin(heading) * -x + -Math.cos(heading) * -z) / distance;
-  if (cos > NOSE_IN_COS) return 'noseIn';
-  if (cos < -NOSE_IN_COS) return 'tailIn';
-  return 'side';
-}
 
 function cssColor(name: string, fallback: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;

@@ -95,9 +95,10 @@ tests/
 
 - **Stick izquierdo:** vertical = acelerador/altura (throttle), horizontal = giro sobre su eje (yaw).
 - **Stick derecho:** vertical = adelante/atrás (pitch), horizontal = izquierda/derecha (roll).
-- Teclado de respaldo: `W/S` altura, `A/D` yaw, flechas pitch/roll, `Espacio` despegue/aterrizaje automático, `E` motores, `1`-`4` modo (Cine/Normal/Sport/ATTI), `G` gráfica de los PID, `` ` `` ajustes, `H` volver a casa (RTH), `V` nivel de viento, `R` reiniciar (también cambia la batería).
+- Teclado de respaldo: `W/S` altura, `A/D` yaw, flechas pitch/roll, `Espacio` despegue/aterrizaje automático, `E` motores, `1`-`4` modo (Cine/Normal/Sport/ATTI), `G` gráfica de los PID, `` ` `` ajustes, `H` volver a casa (RTH), `V` nivel de viento, `C` cámara (detrás del dron / vista del piloto), `L` lecciones, `Esc` abandonar lección, `R` reiniciar (también cambia la batería; en una lección, la repite).
 - SpaceMouse: botón izquierdo = despegue/aterrizaje, botón derecho = siguiente modo.
-- URL: `?mode=cine|normal|sport|atti`, `?wind=calma|moderado|fuerte`, `?battery=25` (batería inicial en %), `?graph=1`, `?demo=hover|sticks|rth` (vuelos automáticos para `npm run check`).
+- URL: `?mode=cine|normal|sport|atti`, `?wind=calma|moderado|fuerte`, `?battery=25` (batería inicial en %), `?graph=1`, `?lesson=<id>` (empezar una lección, ids en `training/lessons.ts`), `?menu=lecciones`, `?demo=hover|sticks|rth` (vuelos automáticos para `npm run check`).
+- Lecciones (`training/`): cada una es datos (cómo empieza, objetivos de `goals.ts`, umbrales de estrellas). En una lección el modo, el viento y el RTH los fija la lección. Los récords se guardan en `localStorage`.
 - El viento usa un generador aleatorio con semilla (`core/random.ts`): las ráfagas se repiten igual en cada vuelo y en los tests.
 
 ## Hoja de ruta

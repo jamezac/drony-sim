@@ -24,4 +24,4 @@ npm run dev     # abre http://localhost:5173 en Chrome o Edge
 
 ## Estado
 
-🚧 Fase 4 (entorno) en curso: viento con ráfagas, efecto suelo, batería con avisos y RTH automático, vuelta a casa con H y límites de altura y distancia. El plan completo está en [docs/PLAN.md](docs/PLAN.md).
+🚧 Fase 5 (lecciones) en curso: 10 lecciones guiadas con objetivos en la escena, puntuación de 1 a 3 estrellas y récords; vista del piloto (tecla C). El plan completo está en [docs/PLAN.md](docs/PLAN.md).

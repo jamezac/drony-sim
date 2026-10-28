@@ -1,5 +1,8 @@
-// Cámaras. Fase 1: tercera persona (detrás y algo por encima del dron).
-// FPV y vista desde el piloto llegan en la fase 6.
+// Cámaras:
+// - Tercera persona: detrás y algo por encima del dron. Fácil, pero siempre ves el dron "de espaldas".
+// - Piloto: desde donde estás tú, a la vista (como se vuela un DJI de verdad). Aquí sí se nota
+//   si el dron viene con el morro hacia ti y los controles se ven invertidos.
+// La FPV (la imagen de la cámara del dron) llega en la fase 6.
 //
 // La cámara sigue al dron con un "muelle" exponencial: se acerca a su posición ideal una
 // fracción cada frame (1 − e^(−k·dt)), que no depende de los fps. Gira con el rumbo del dron
@@ -45,5 +48,41 @@ export class ChaseCamera {
 
     lookTarget.copy(target).y += renderConfig.chaseLookOffset;
     this.camera.lookAt(lookTarget);
+  }
+}
+
+export type CameraMode = 'chase' | 'pilot';
+
+export const CAMERA_LABELS: Record<CameraMode, string> = {
+  chase: 'Cámara: detrás del dron',
+  pilot: 'Cámara: tú (a la vista)',
+};
+
+/** Vista del piloto: posición fija a la altura de los ojos, la mirada sigue al dron. */
+export class PilotCamera {
+  readonly camera = new THREE.PerspectiveCamera(renderConfig.pilotFov, 1, 0.05, 800);
+  private readonly look = new THREE.Vector3();
+  private initialized = false;
+
+  constructor() {
+    const { pilotPosition, pilotEyeHeight } = renderConfig;
+    this.camera.position.set(pilotPosition.x, pilotEyeHeight, pilotPosition.z);
+  }
+
+  setAspect(aspect: number): void {
+    this.camera.aspect = aspect;
+    this.camera.updateProjectionMatrix();
+  }
+
+  snap(target: THREE.Vector3): void {
+    this.initialized = false;
+    this.update(target, 0);
+  }
+
+  update(target: THREE.Vector3, dt: number): void {
+    if (!this.initialized) this.look.copy(target);
+    else this.look.lerp(target, 1 - Math.exp(-renderConfig.pilotLookStiffness * dt));
+    this.initialized = true;
+    this.camera.lookAt(this.look);
   }
 }

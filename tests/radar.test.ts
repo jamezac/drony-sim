@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { orientationToPilot } from '../src/ui/radar';
+import { headingTowardPilot, orientationToPilot } from '../src/training/orientation';
 
 // El piloto está en el origen. Rumbo 0 = morro hacia −Z; π = morro hacia +Z.
 describe('orientationToPilot', () => {
@@ -17,6 +17,11 @@ describe('orientationToPilot', () => {
 
   it('a la derecha del piloto mirando hacia él (rumbo +90° = morro hacia −X): nose-in', () => {
     expect(orientationToPilot(20, 0, Math.PI / 2)).toBe('noseIn');
+  });
+
+  it('headingTowardPilot da un rumbo con el morro hacia el piloto', () => {
+    expect(orientationToPilot(6, -8, headingTowardPilot(6, -8))).toBe('noseIn');
+    expect(orientationToPilot(-15, 3, headingTowardPilot(-15, 3))).toBe('noseIn');
   });
 
   it('muy cerca del piloto no se clasifica', () => {

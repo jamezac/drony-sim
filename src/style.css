@@ -44,8 +44,188 @@ a {
   pointer-events: none;
 }
 
-.hud a {
+.hud a,
+.hud button {
   pointer-events: auto;
+}
+
+.link-button {
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  background: none;
+  border: none;
+}
+
+/* --- Panel de la lección en curso --- */
+
+.lesson-panel {
+  position: absolute;
+  bottom: 44px;
+  left: 50%;
+  width: min(460px, calc(100vw - 32px));
+  transform: translateX(-50%);
+  padding: 12px 16px 10px;
+  background: rgb(15 20 25 / 85%);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+}
+
+.lesson-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.lesson-header {
+  display: flex;
+  justify-content: space-between;
+  margin: 2px 0 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lesson-instruction {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.lesson-progress {
+  height: 8px;
+  overflow: hidden;
+  background: var(--bg);
+  border-radius: 4px;
+}
+
+.lesson-progress-fill {
+  height: 100%;
+  background: var(--ok);
+  transition: width 0.15s;
+}
+
+.lesson-hint {
+  margin: 8px 0 0;
+  color: #ffcf5c;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.lesson-footer {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* --- Ventanas: menú de lecciones y resultados --- */
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgb(5 8 12 / 70%);
+  pointer-events: auto;
+}
+
+.modal-backdrop[hidden] {
+  display: none;
+}
+
+.modal {
+  width: min(860px, 100%);
+  max-height: 100%;
+  padding: 20px 24px;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.modal-title {
+  margin: 0 0 4px;
+  font-size: 22px;
+}
+
+.modal-subtitle {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.lesson-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+  counter-reset: lesson;
+}
+
+.lesson-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  counter-increment: lesson;
+}
+
+.lesson-card button {
+  align-self: flex-start;
+  margin-top: auto;
+}
+
+.lesson-card-title {
+  margin: 0;
+  font-size: 15px;
+}
+
+.lesson-card-title::before {
+  content: counter(lesson) '. ';
+  color: var(--accent);
+}
+
+.lesson-card-summary,
+.lesson-card-skill,
+.lesson-card-best {
+  margin: 0;
+  font-size: 13px;
+}
+
+.lesson-card-skill,
+.lesson-card-best {
+  color: var(--muted);
+}
+
+.lesson-card-done {
+  color: #ffcf5c;
+}
+
+.results-stars {
+  margin: 8px 0;
+  color: #ffcf5c;
+  font-size: 44px;
+  letter-spacing: 4px;
+}
+
+.results-lines {
+  margin: 0 0 16px;
+  padding-left: 18px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.results-failed {
+  margin: 8px 0 16px;
+  color: var(--bad);
+  font-size: 15px;
 }
 
 .hud-panel {
@@ -100,17 +280,24 @@ a {
   color: var(--bad);
 }
 
-/* Avisos apilados arriba en el centro (los dos más importantes) */
-.hud-warnings {
+/* Columna central de arriba con los avisos */
+.hud-center {
   position: absolute;
   top: 16px;
   left: 50%;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 6px;
   width: max-content;
   max-width: min(560px, calc(100% - 32px));
   transform: translateX(-50%);
+}
+
+.hud-warnings {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .hud-warning {
