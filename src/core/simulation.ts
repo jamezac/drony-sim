@@ -9,6 +9,7 @@ import { Battery } from '../physics/battery';
 import { copyDroneState, createDroneState, MOTOR_COUNT, type DroneState } from '../physics/drone';
 import { stepDynamics, type AirConditions } from '../physics/dynamics';
 import { applyGroundContact, groundEffectFactor, Wind } from '../physics/environment';
+import { Vector3 } from 'three';
 import { droneConfig, simConfig, windConfig, type WindLevel } from './config';
 import type { ControlInput } from './controlInput';
 
@@ -19,7 +20,17 @@ export interface SimulationOptions {
   batteryPercent?: number;
 }
 
+/** Dónde y cómo empezar en el aire */
+export interface AirborneStart {
+  x: number;
+  /** Altura sobre el suelo (m) */
+  altitude: number;
+  z: number;
+  heading: number;
+}
+
 const MOTORS_OFF = new Array<number>(MOTOR_COUNT).fill(0);
+const UP = new Vector3(0, 1, 0);
 
 export class Simulation {
   readonly state: DroneState = createDroneState();
@@ -32,7 +43,7 @@ export class Simulation {
   private currentMode: FlightModeName;
   /** Límites efectivos: pasan de un modo a otro de forma gradual */
   private readonly blender: ModeBlender;
-  private readonly initialBattery: number;
+  private initialBattery: number;
   private readonly air: AirConditions;
   time = 0;
 
@@ -105,6 +116,28 @@ export class Simulation {
     applyGroundContact(this.state);
     this.battery.update(this.state.motorThrust, this.flight.phase !== 'disarmed', dt);
     this.time += dt;
+  }
+
+  /** Cambia modo, viento y batería inicial y vuelve a empezar (al iniciar una lección). */
+  resetWith(options: SimulationOptions): void {
+    if (options.mode) this.currentMode = options.mode;
+    if (options.wind) this.wind.level = options.wind;
+    if (options.batteryPercent !== undefined) this.initialBattery = options.batteryPercent;
+    this.reset();
+  }
+
+  /** Coloca el dron volando, quieto y con los motores al empuje de hover. */
+  spawnFlying(start: AirborneStart): void {
+    const { state } = this;
+    state.position.set(start.x, droneConfig.restHeight + start.altitude, start.z);
+    state.velocity.set(0, 0, 0);
+    state.orientation.setFromAxisAngle(UP, start.heading);
+    state.angularVelocity.set(0, 0, 0);
+    state.motorThrust.fill((droneConfig.mass * simConfig.gravity) / MOTOR_COUNT);
+    state.onGround = false;
+    copyDroneState(this.previous, state);
+    this.flight.startFlying();
+    this.controller.reset(state);
   }
 
   /** Vuelve al inicio: dron posado en el home, batería como al empezar y las mismas ráfagas. */

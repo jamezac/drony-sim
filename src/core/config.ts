@@ -378,6 +378,12 @@ export const renderConfig = {
   // Apunta algo por debajo del dron para que el suelo (y su sombra) entre en el encuadre
   chaseLookOffset: -0.3, // m
   chaseFov: 60, // grados
+  // Vista del piloto: tú, de pie un poco por detrás del helipuerto, mirando al dron
+  pilotPosition: { x: 0, z: 3 }, // m
+  pilotEyeHeight: 1.7, // m
+  // Algo más cerrado que la cámara de seguimiento: el ojo humano "enfoca" el dron, no ve un gran angular
+  pilotFov: 45, // grados
+  pilotLookStiffness: 8, // 1/s: lo rápido que la mirada sigue al dron
   // Rigidez del "muelle" que sigue al dron (1/s): más alto = sigue más pegado
   chasePositionStiffness: 6,
   chaseYawStiffness: 3,

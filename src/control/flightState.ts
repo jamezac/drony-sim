@@ -115,6 +115,12 @@ export class FlightStateMachine {
     return this.phase;
   }
 
+  /** Empieza directamente en vuelo (lecciones que arrancan en el aire). */
+  startFlying(): void {
+    this.enter('flying');
+    this.airborne = true;
+  }
+
   /** Se acabó la batería: los motores se paran estén donde estén. */
   forceDisarm(): void {
     this.enter('disarmed');

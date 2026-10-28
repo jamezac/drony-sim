@@ -412,6 +412,8 @@ Con esto WSL y Windows comparten `localhost` en los dos sentidos.
 
 **Captura esperada:** el menú de lecciones; en `/?lesson=hover`, el cubo objetivo, el panel de instrucciones y el cronómetro.
 
+**Decisión (durante la fase):** la vista del piloto (fase 6) se adelanta. Las lecciones de orientación (cuadrado, nose-in, círculo, ocho y aterrizaje de precisión) no tienen sentido con la cámara de seguimiento, que siempre va detrás del dron. En la fase 6 quedan la FPV, el gimbal y la imagen en miniatura.
+
 **Hecho cuando:** puedes jugar las 10 lecciones de principio a fin desde el menú.
 
 ---

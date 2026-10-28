@@ -33,6 +33,9 @@ const PAGES: { name: string; path: string }[] = [
   { name: 'graph', path: '/?demo=sticks&mode=sport&graph=1' },
   { name: 'wind-hover', path: '/?demo=hover&wind=moderado' },
   { name: 'rth', path: '/?demo=rth&battery=25' },
+  { name: 'lesson-menu', path: '/?menu=lecciones' },
+  { name: 'lesson-hover', path: '/?lesson=hover&demo=hover' },
+  { name: 'lesson-square', path: '/?lesson=cuadrado' },
   { name: 'devices', path: '/devices.html' },
 ];
 

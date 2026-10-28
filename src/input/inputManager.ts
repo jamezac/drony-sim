@@ -15,6 +15,8 @@ export interface FrameInput extends ControlInput {
   reset: boolean;
   /** Pasar al siguiente nivel de viento (tecla V) */
   cycleWind: boolean;
+  /** Cambiar de cámara (tecla C) */
+  toggleCamera: boolean;
   spaceMouseConnected: boolean;
   /** Nombre del mando genérico conectado, o null */
   gamepadName: string | null;
@@ -56,6 +58,7 @@ export class InputManager {
         ...this.demo.sample(dt),
         reset: false,
         cycleWind: false,
+        toggleCamera: false,
         spaceMouseConnected: false,
         gamepadName: null,
         modeRequest: null,
@@ -99,6 +102,7 @@ export class InputManager {
       actions: { takeoffLand, toggleMotors, returnHome },
       reset: keyboard.actions.reset,
       cycleWind: keyboard.actions.cycleWind,
+      toggleCamera: keyboard.actions.toggleCamera,
       spaceMouseConnected: spaceMouse !== null,
       gamepadName: gamepad?.id ?? null,
       modeRequest: keyboard.mode ?? (modeButton ? 'next' : null),

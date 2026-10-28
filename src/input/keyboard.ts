@@ -1,5 +1,5 @@
 // Teclado como respaldo (Modo 2): W/S altura, A/D giro, flechas adelante/atrás/lados, 1-4 modo,
-// H vuelta a casa, V nivel de viento.
+// H vuelta a casa, V nivel de viento, C cámara.
 // Una tecla es todo o nada, así que el valor sube en rampa mientras está pulsada: se parece
 // más a empujar un stick poco a poco y evita tirones bruscos del dron.
 
@@ -19,6 +19,7 @@ export const ACTION_KEYS = {
   returnHome: 'KeyH',
   reset: 'KeyR',
   cycleWind: 'KeyV',
+  toggleCamera: 'KeyC',
 } as const;
 
 type ActionName = keyof typeof ACTION_KEYS;
