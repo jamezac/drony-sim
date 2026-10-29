@@ -1,5 +1,5 @@
 // Teclado como respaldo (Modo 2): W/S altura, A/D giro, flechas adelante/atrás/lados, 1-4 modo, 5 Acro,
-// H vuelta a casa, V nivel de viento, C cámara, Q/Z gimbal (arriba/abajo), P miniatura FPV, N escenario.
+// H vuelta a casa, O órbita, V nivel de viento, C cámara, Q/Z gimbal (arriba/abajo), P miniatura FPV, N escenario.
 // Una tecla es todo o nada, así que el valor sube en rampa mientras está pulsada: se parece
 // más a empujar un stick poco a poco y evita tirones bruscos del dron.
 
@@ -17,6 +17,7 @@ export const ACTION_KEYS = {
   toggleMotors: 'KeyE',
   takeoffLand: 'Space',
   returnHome: 'KeyH',
+  orbit: 'KeyO',
   reset: 'KeyR',
   cycleWind: 'KeyV',
   toggleCamera: 'KeyC',

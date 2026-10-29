@@ -26,6 +26,8 @@ export function activeWarnings(input: WarningInput): string[] {
 
   if (forcedLanding) {
     warnings.push('Batería crítica: aterrizaje forzoso. No se puede cancelar.');
+  } else if (phase === 'orbiting') {
+    warnings.push('Órbita: avance/atrás cambia el radio, lateral la velocidad y el sentido; el throttle, la altura. O para salir.');
   } else if (phase === 'returning') {
     warnings.push(
       batteryPercent <= batteryConfig.rthPercent

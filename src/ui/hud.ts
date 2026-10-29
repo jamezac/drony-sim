@@ -47,6 +47,8 @@ export interface HudData {
   gimbalDegrees: number;
   /** Nombre del escenario actual */
   scenario: string;
+  /** Radio (m) y velocidad (m/s) de la órbita, si está orbitando */
+  orbit: { radius: number; speed: number } | null;
 }
 
 function element(tag: string, className: string, text = ''): HTMLElement {
@@ -101,7 +103,7 @@ export class Hud {
     const help = element(
       'p',
       'hud-help',
-      'Espacio / botón izq.: despegar o aterrizar · E: motores · H: volver a casa · 1-4 / botón dcho.: modo · 5: Acro · ' +
+      'Espacio / botón izq.: despegar o aterrizar · E: motores · H: volver a casa · O: órbita · 1-4 / botón dcho.: modo · 5: Acro · ' +
         'W/S: altura · A/D: giro · ↑↓←→: mover · C: cámara · Q/Z: gimbal · P: miniatura · N: escenario · V: viento · ' +
         'R: reiniciar · ' +
         'G: gráfica · ',
@@ -129,7 +131,12 @@ export class Hud {
   update(data: HudData): void {
     this.mode.textContent = FLIGHT_MODE_LABELS[data.mode];
     this.mode.dataset.mode = data.mode;
-    const stage = data.phase === 'returning' ? ` · ${RTH_STAGE_LABELS[data.rthStage]}` : '';
+    const stage =
+      data.phase === 'returning'
+        ? ` · ${RTH_STAGE_LABELS[data.rthStage]}`
+        : data.orbit
+          ? ` · R ${data.orbit.radius.toFixed(0)} m · ${Math.abs(data.orbit.speed).toFixed(1)} m/s`
+          : '';
     this.phase.textContent = ` · ${FLIGHT_PHASE_LABELS[data.phase]}${stage}`;
     this.gps.textContent = data.gps
       ? '● GPS: mantiene la posición'

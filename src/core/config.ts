@@ -145,6 +145,28 @@ export const rthConfig = {
 };
 
 // ---------------------------------------------------------------------------
+// Órbita (POI, "punto de interés"), como la de DJI: el dron da vueltas a un punto mirándolo
+// ---------------------------------------------------------------------------
+
+export const orbitConfig = {
+  // Al empezar, el centro se pone a esta distancia delante del morro
+  startRadius: 10, // m
+  minRadius: 3, // m
+  maxRadius: 50, // m
+  // Velocidad a lo largo del círculo al empezar (positiva = hacia la derecha del dron)
+  startSpeed: 2, // m/s
+  maxSpeed: 8, // m/s (y nunca más que la del modo)
+  // Con el stick a fondo, cuánto cambian el radio (avance/atrás) y la velocidad (lateral) por segundo
+  radiusRate: 2, // m/s
+  speedRate: 1.5, // m/s²
+  // Para girar en círculo hace falta una aceleración hacia el centro v²/R. Se limita, así que en
+  // órbitas pequeñas la velocidad máxima baja: v ≤ √(a·R)
+  maxCentripetal: 3, // m/s²
+  // Corrección del radio: velocidad hacia fuera o hacia dentro por cada metro de error
+  radiusKp: 1, // 1/s
+};
+
+// ---------------------------------------------------------------------------
 // Control: PID en cascada. Cada lazo controla al de debajo y el interior es el más rápido.
 //   posición → velocidad → aceleración/inclinación → actitud → velocidad angular → motores
 // Regla práctica: cada lazo ~3 veces más lento que el que tiene debajo.

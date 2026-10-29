@@ -111,7 +111,7 @@ export class InputManager {
 
     return {
       sticks: combineSticks(keyboard.sticks, spaceMouseSticks, gamepadSticks),
-      actions: { takeoffLand, toggleMotors, returnHome },
+      actions: { takeoffLand, toggleMotors, returnHome, orbit: keyboard.actions.orbit },
       reset: keyboard.actions.reset,
       cycleWind: keyboard.actions.cycleWind,
       toggleCamera: keyboard.actions.toggleCamera,

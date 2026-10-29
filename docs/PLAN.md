@@ -478,6 +478,8 @@ Con esto WSL y Windows comparten `localhost` en los dos sentidos.
 
 **Captura esperada** (`?demo=orbit`): el dron orbitando el poste y el HUD mostrando "Órbita · R 10 m".
 
+**Hecho (parte B, Órbita):** tecla `O` con el centro 10 m delante del morro; los sticks ajustan radio, velocidad/sentido y altura; prealimentación de la aceleración centrípeta y del giro; poste y círculo en la escena; captura `?demo=orbit`.
+
 **Hecho (parte A, Acro):** tecla `5` (fuera del ciclo del botón; desde Acro el botón vuelve a Normal), rates Betaflight ajustables en el panel, throttle híbrido, FPV fija al cuerpo, crash al tocar el suelo boca abajo, lección 13 ("Primer flip") y captura `?mode=acro&demo=flip`.
 
 **Hecho cuando:** puedes hacer un flip en Acro, y la órbita y los waypoints vuelan solos.

@@ -44,6 +44,7 @@ const PAGES: { name: string; path: string }[] = [
   { name: 'crash', path: '/?scenario=obstaculos&demo=crash' },
   { name: 'lesson-obstacles', path: '/?lesson=obstaculos&demo=hover' },
   { name: 'acro-flip', path: '/?mode=acro&demo=flip' },
+  { name: 'orbit', path: '/?demo=orbit' },
   { name: 'devices', path: '/devices.html' },
 ];
 

@@ -9,6 +9,7 @@
 
 import { controlConfig, droneConfig, rthConfig } from '../core/config';
 import { headingOf, type DroneState } from '../physics/drone';
+import type { AutoTargets } from './autoTargets';
 
 export type RthStage = 'climb' | 'turn' | 'cruise' | 'arrived';
 
@@ -19,17 +20,6 @@ export const RTH_STAGE_LABELS: Record<RthStage, string> = {
   arrived: 'llegando',
 };
 
-/** Lo que el RTH le pide al controlador en cada paso */
-export interface RthTargets {
-  /** Velocidad horizontal objetivo (m/s, mundo) */
-  velocityX: number;
-  velocityZ: number;
-  /** Altura objetivo (y del mundo, m) */
-  altitude: number;
-  /** Rumbo objetivo (rad), o null para mantener el actual */
-  heading: number | null;
-}
-
 function wrapAngle(angle: number): number {
   return Math.atan2(Math.sin(angle), Math.cos(angle));
 }
@@ -37,7 +27,7 @@ function wrapAngle(angle: number): number {
 export class ReturnToHome {
   stage: RthStage = 'climb';
   private cruiseAltitude = 0;
-  readonly targets: RthTargets = { velocityX: 0, velocityZ: 0, altitude: 0, heading: null };
+  readonly targets: AutoTargets = { velocityX: 0, velocityZ: 0, accelX: 0, accelZ: 0, altitude: 0, heading: null };
 
   start(state: DroneState): void {
     const distance = Math.hypot(state.position.x, state.position.z);
@@ -47,7 +37,7 @@ export class ReturnToHome {
     this.stage = 'climb';
   }
 
-  update(state: DroneState): RthTargets {
+  update(state: DroneState): AutoTargets {
     const { x, y, z } = state.position;
     const distance = Math.hypot(x, z);
     const speed = Math.hypot(state.velocity.x, state.velocity.z);

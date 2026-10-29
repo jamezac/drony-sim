@@ -41,6 +41,7 @@ import {
   type Scenario,
   type ScenarioName,
 } from './scenarios/scenarios';
+import type { MarkerSpec } from './training/goals';
 import { frameFromSimulation } from './training/lessonFrame';
 import { LessonRun } from './training/lessonRun';
 import { findLesson, nextLesson, type LessonDefinition } from './training/lessons';
@@ -65,6 +66,8 @@ const CRASH_DEMO_READY_SECONDS = 2;
 const STICKS_DEMO_READY_SECONDS = 5.5;
 // ?demo=rth pulsa "volver a casa" a los 8 s; a los 11 ya está subiendo o volviendo
 const RTH_DEMO_READY_SECONDS = 11;
+// ?demo=orbit pulsa O a los 6,5 s; a los 12 ya lleva un buen trozo de círculo
+const ORBIT_DEMO_READY_SECONDS = 12;
 // ?demo=flip: la captura se hace con el dron ya muy inclinado, en mitad del flip
 const FLIP_DEMO_READY_TILT = (120 * Math.PI) / 180;
 // Con viento el dron nunca está del todo quieto: se espera a que lleve un rato en hover
@@ -77,7 +80,7 @@ function byId<T extends HTMLElement>(id: string): T {
   return element as T;
 }
 
-// Parámetros de la URL: ?demo=hover|sticks|rth|crash|flip (vuelo automático), ?mode=cine|normal|sport|atti|acro,
+// Parámetros de la URL: ?demo=hover|sticks|rth|crash|flip|orbit (vuelo automático), ?mode=cine|normal|sport|atti|acro,
 // ?wind=calma|moderado|fuerte, ?battery=25 (batería inicial en %), ?graph=1,
 // ?lesson=<id> (empezar una lección), ?menu=lecciones (abrir el menú de lecciones),
 // ?camera=chase|pilot|fpv, ?scenario=libre|parque|ciudad|obstaculos
@@ -192,6 +195,17 @@ function startLesson(lesson: LessonDefinition): void {
   results.close();
 }
 
+/** En vuelo libre, durante una órbita: el punto de interés (un poste) y el círculo en el suelo. */
+function orbitMarkers(): MarkerSpec[] {
+  if (sim.phase !== 'orbiting') return [];
+  const { center, radius } = sim.controller.orbit;
+  // Radio redondeado: los marcadores solo se rehacen cuando cambia de verdad
+  return [
+    { kind: 'pole', x: center.x, z: center.z, height: 6 },
+    { kind: 'groundCircle', x: center.x, z: center.z, radius: Math.round(radius * 10) / 10 },
+  ];
+}
+
 /** Deja la lección y vuelve al vuelo libre (el dron sigue donde está). */
 function endLesson(): void {
   lessonRun = null;
@@ -294,6 +308,7 @@ function isReady(): boolean {
   if (demo === 'rth') return sim.phase === 'returning' && sim.time > RTH_DEMO_READY_SECONDS;
   if (demo === 'crash') return sim.crash !== null && sim.time - sim.crash.time > CRASH_DEMO_READY_SECONDS;
   if (demo === 'flip') return tiltOf(sim.state.orientation) > FLIP_DEMO_READY_TILT;
+  if (demo === 'orbit') return sim.phase === 'orbiting' && sim.time > ORBIT_DEMO_READY_SECONDS;
   if (demo !== 'hover') return true;
   if (sim.wind.meanSpeed > 0) return sim.phase === 'flying' && sim.time > WINDY_HOVER_READY_SECONDS;
   const hovering = sim.phase === 'flying' && sim.state.velocity.length() < 0.05;
@@ -330,7 +345,9 @@ world.renderer.setAnimationLoop((timeMs: number) => {
   pendingActions = {
     toggleMotors: pendingActions.toggleMotors || frameInput.actions.toggleMotors,
     takeoffLand: pendingActions.takeoffLand || frameInput.actions.takeoffLand,
+    // En una lección el RTH y la órbita no están: harían el ejercicio por ti
     returnHome: !lessonRun && (pendingActions.returnHome || frameInput.actions.returnHome),
+    orbit: !lessonRun && (pendingActions.orbit || frameInput.actions.orbit),
   };
 
   let alpha = 1;
@@ -341,6 +358,7 @@ world.renderer.setAnimationLoop((timeMs: number) => {
     });
     updateLesson(frameInput.sticks);
   }
+  if (!lessonRun) markers.sync(orbitMarkers());
 
   // Interpolación entre el paso anterior y el actual: movimiento suave a cualquier fps
   pose.position.lerpVectors(sim.previous.position, sim.state.position, alpha);
@@ -394,6 +412,7 @@ world.renderer.setAnimationLoop((timeMs: number) => {
     camera: cameraMode,
     gimbalDegrees: fpv.pitch * RAD_TO_DEG,
     scenario: scenario.label,
+    orbit: sim.phase === 'orbiting' ? { radius: sim.controller.orbit.radius, speed: sim.controller.orbit.speed } : null,
   });
   // En una lección, el crash se cuenta en la pantalla de resultados
   crashOverlay.update(sim.crash && !lessonRun ? describeCrash(sim.crash.target, sim.crash.speed) : null);

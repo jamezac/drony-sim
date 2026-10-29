@@ -4,16 +4,29 @@
 //     │                 │  ▲                               │  │  └──H──▶ volviendo a casa
 //     │              Espacio └──── se posa (aterrizaje a mano)┘  │              │ llega
 //     └──Espacio──▶ despegando (sube a 1,2 m) ──▶ en vuelo ──Espacio──▶ aterrizando ◀┘ ──▶ parado
+//                                                    ▲  │
+//                                                    O  O
+//                                                    │  ▼
+//                                                  órbita (H: RTH, Espacio: aterrizar)
 //
 // - Con los motores en marcha en el suelo, mantener el throttle abajo ~1,5 s los para.
 // - Mover los sticks cancela el despegue automático y el RTH; subir el throttle cancela el aterrizaje.
+//   En la órbita no: los sticks la ajustan (radio, velocidad, altura). Se sale con O.
 // - Batería: al 15 % vuelve sola a casa (una vez; se puede cancelar). Al 10 % aterriza donde
-//   esté y ya no se puede cancelar. Sin GPS (ATTI) no hay RTH.
+//   esté y ya no se puede cancelar. Sin GPS (ATTI, Acro) no hay RTH ni órbita.
 
 import { batteryConfig, flightConfig } from '../core/config';
 import type { ControlActions, Sticks } from '../core/controlInput';
 
-export type FlightPhase = 'disarmed' | 'armed' | 'takingOff' | 'flying' | 'returning' | 'landing' | 'crashed';
+export type FlightPhase =
+  | 'disarmed'
+  | 'armed'
+  | 'takingOff'
+  | 'flying'
+  | 'returning'
+  | 'orbiting'
+  | 'landing'
+  | 'crashed';
 
 export const FLIGHT_PHASE_LABELS: Record<FlightPhase, string> = {
   disarmed: 'Motores parados',
@@ -21,6 +34,7 @@ export const FLIGHT_PHASE_LABELS: Record<FlightPhase, string> = {
   takingOff: 'Despegando',
   flying: 'En vuelo',
   returning: 'Volviendo a casa (RTH)',
+  orbiting: 'Órbita',
   landing: 'Aterrizando',
   crashed: 'Estrellado',
 };
@@ -31,7 +45,7 @@ export interface FlightStateInput {
   onGround: boolean;
   /** Altura sobre la posición de reposo (m) */
   altitude: number;
-  /** Si hay GPS (modo con mantenimiento de posición): sin él no hay RTH */
+  /** Si hay GPS (modo con mantenimiento de posición): sin él no hay RTH ni órbita */
   gps: boolean;
   batteryPercent: number;
   /** El RTH ha llegado sobre el punto de despegue */
@@ -59,7 +73,8 @@ export class FlightStateMachine {
       flightConfig;
     if (altitude > airborneHeight) this.airborne = true;
     const sticksMoved = Math.max(...Object.values(sticks).map(Math.abs)) > overrideStick;
-    const inAir = this.phase === 'flying' || this.phase === 'returning' || this.phase === 'takingOff';
+    const inAir =
+      this.phase === 'flying' || this.phase === 'returning' || this.phase === 'orbiting' || this.phase === 'takingOff';
 
     // Batería crítica: aterrizaje forzoso desde cualquier fase en el aire (y el que ya estuviera
     // en curso deja de poder cancelarse)
@@ -92,12 +107,20 @@ export class FlightStateMachine {
       case 'flying':
         if (actions.takeoffLand) this.enter('landing');
         else if (gps && actions.returnHome) this.enter('returning');
-        else if (gps && !this.lowBatteryRthDone && batteryPercent <= batteryConfig.rthPercent && this.airborne) {
-          this.lowBatteryRthDone = true;
-          this.enter('returning');
-        }
+        else if (this.lowBatteryReturn(gps, batteryPercent)) this.enter('returning');
+        else if (gps && actions.orbit && this.airborne && !onGround) this.enter('orbiting');
         // Se ha posado tras volar, o soltó el throttle antes de llegar a despegar
         else if (onGround && (this.airborne || sticks.throttle <= 0)) this.enter('armed');
+        break;
+
+      case 'orbiting':
+        if (actions.takeoffLand) this.enter('landing');
+        else if (gps && actions.returnHome) this.enter('returning');
+        else if (this.lowBatteryReturn(gps, batteryPercent)) this.enter('returning');
+        // Salir con O, o al pasar a un modo sin GPS (sin él no sabe dónde está el centro)
+        else if (actions.orbit || !gps) this.enter('flying');
+        // Bajó con el throttle hasta posarse
+        else if (onGround) this.enter('armed');
         break;
 
       case 'returning':
@@ -118,6 +141,13 @@ export class FlightStateMachine {
         break;
     }
     return this.phase;
+  }
+
+  /** Vuelta a casa por batería baja: una sola vez por vuelo (si el piloto la cancela, no insiste). */
+  private lowBatteryReturn(gps: boolean, batteryPercent: number): boolean {
+    if (!gps || this.lowBatteryRthDone || batteryPercent > batteryConfig.rthPercent || !this.airborne) return false;
+    this.lowBatteryRthDone = true;
+    return true;
   }
 
   /** Empieza directamente en vuelo (lecciones que arrancan en el aire). */
