@@ -13,7 +13,7 @@
 import { batteryConfig, flightConfig } from '../core/config';
 import type { ControlActions, Sticks } from '../core/controlInput';
 
-export type FlightPhase = 'disarmed' | 'armed' | 'takingOff' | 'flying' | 'returning' | 'landing';
+export type FlightPhase = 'disarmed' | 'armed' | 'takingOff' | 'flying' | 'returning' | 'landing' | 'crashed';
 
 export const FLIGHT_PHASE_LABELS: Record<FlightPhase, string> = {
   disarmed: 'Motores parados',
@@ -22,6 +22,7 @@ export const FLIGHT_PHASE_LABELS: Record<FlightPhase, string> = {
   flying: 'En vuelo',
   returning: 'Volviendo a casa (RTH)',
   landing: 'Aterrizando',
+  crashed: 'Estrellado',
 };
 
 export interface FlightStateInput {
@@ -106,6 +107,10 @@ export class FlightStateMachine {
         else if (rthArrived) this.enter('landing');
         break;
 
+      case 'crashed':
+        // Motores parados hasta reiniciar: un dron estrellado no vuelve a despegar solo
+        break;
+
       case 'landing':
         if (!this.forcedLanding && sticks.throttle > overrideStick) this.enter('flying');
         // Como DJI: al tocar suelo en el aterrizaje automático, los motores se paran solos
@@ -123,7 +128,12 @@ export class FlightStateMachine {
 
   /** Se acabó la batería: los motores se paran estén donde estén. */
   forceDisarm(): void {
-    this.enter('disarmed');
+    if (this.phase !== 'crashed') this.enter('disarmed');
+  }
+
+  /** Choque fuerte: hélices rotas, motores parados, el dron cae. */
+  crash(): void {
+    this.enter('crashed');
   }
 
   private enter(phase: FlightPhase): void {

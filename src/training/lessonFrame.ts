@@ -2,6 +2,7 @@
 
 import type { Sticks } from '../core/controlInput';
 import type { Simulation } from '../core/simulation';
+import { describeCrash } from '../physics/collisions';
 import { headingOf } from '../physics/drone';
 import type { LessonFrame } from './goals';
 
@@ -16,5 +17,6 @@ export function frameFromSimulation(sim: Simulation, sticks: Sticks): LessonFram
     phase: sim.phase,
     onGround,
     sticks,
+    crash: sim.crash ? describeCrash(sim.crash.target, sim.crash.speed) : null,
   };
 }

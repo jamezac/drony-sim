@@ -3,6 +3,7 @@
 // Los umbrales de estrellas son orientativos: ajústalos aquí si te resultan fáciles o difíciles.
 
 import type { FlightModeName, WindLevel } from '../core/config';
+import { buildScenario, type ScenarioName } from '../scenarios/scenarios';
 import {
   AltitudeGoal,
   GatesGoal,
@@ -23,6 +24,8 @@ export interface LessonSetup {
   mode: FlightModeName;
   wind: WindLevel;
   camera: LessonCamera;
+  /** Escenario (por defecto, el campo libre) */
+  scenario?: ScenarioName;
   /** Si empieza ya en el aire: posición (altura sobre el suelo) y rumbo. Si no, posado en la H. */
   airborne?: { x: number; altitude: number; z: number; heading: number };
 }
@@ -211,6 +214,34 @@ export const LESSONS: LessonDefinition[] = [
       new HoldBoxGoal({ x: 0, y: 2, z: -3 }, 1, 15, 'Mantén el dron en el cubo 15 s. Al soltar no frena: corrige antes de salirte.'),
     ],
     rate: (m) => combine(rateMetric('Precisión (error medio)', m.hoverRms, 0.4, 0.7, 'm')),
+  },
+  {
+    id: 'parque',
+    title: 'Circuito en el parque',
+    summary: 'Cruza las 4 puertas del parque en orden y vuelve a cruzar la primera, sin tocar los árboles.',
+    skill: 'Volar entre obstáculos reales: medir distancias y frenar a tiempo. Aquí chocar significa estrellarse.',
+    setup: { mode: 'normal', wind: 'calm', camera: 'chase', scenario: 'parque' },
+    goals: () => [
+      new GatesGoal(
+        buildScenario('parque').course,
+        'Pasa por DENTRO de las 4 puertas en orden y vuelve a cruzar la primera. Por encima no cuenta.',
+      ),
+    ],
+    rate: (m) => combine(rateMetric('Desvío de la línea', m.pathRms, 1.5, 3, 'm'), rateTime(m.time, 45, 75)),
+  },
+  {
+    id: 'obstaculos',
+    title: 'Pista de obstáculos',
+    summary: 'Puerta, muro, puerta, slalom entre postes y una ventana elevada.',
+    skill: 'Cambiar de altura y de dirección con precisión: lo que hace falta para volar cerca de edificios.',
+    setup: { mode: 'normal', wind: 'calm', camera: 'chase', scenario: 'obstaculos' },
+    goals: () => [
+      new GatesGoal(
+        buildScenario('obstaculos').course,
+        'Puerta, POR ENCIMA del muro, puerta, slalom (derecha, izquierda, derecha) y la ventana elevada.',
+      ),
+    ],
+    rate: (m) => combine(rateMetric('Desvío de la línea', m.pathRms, 1.2, 2.5, 'm'), rateTime(m.time, 40, 70)),
   },
 ];
 

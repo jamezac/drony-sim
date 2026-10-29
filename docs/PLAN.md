@@ -453,7 +453,9 @@ Con esto WSL y Windows comparten `localhost` en los dos sentidos.
 
 **Tests:** detección de colisiones esfera-AABB y esfera-cilindro; umbrales de crash; aterrizaje suave = no es crash.
 
-**Captura esperada** (`?scenario=park&demo=hover`): el parque con árboles y puertas visibles alrededor del dron.
+**Captura esperada** (`?scenario=parque&demo=hover`): el parque con árboles y puertas visibles alrededor del dron.
+
+**Añadido durante la fase:** lecciones 11 (circuito en el parque) y 12 (pista de obstáculos), con puertas reales que hay que cruzar por dentro, sin pasar por encima.
 
 **Hecho cuando:** completas un circuito de puertas en el parque, y chocar con un árbol provoca un crash.
 

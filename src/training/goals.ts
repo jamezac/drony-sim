@@ -4,6 +4,7 @@
 
 import type { FlightPhase } from '../control/flightState';
 import type { Sticks } from '../core/controlInput';
+import type { Waypoint } from '../scenarios/scenarios';
 import { orientationToPilot, type Orientation } from './orientation';
 
 /** Lo que ve una lección del dron en cada momento */
@@ -17,12 +18,23 @@ export interface LessonFrame {
   phase: FlightPhase;
   onGround: boolean;
   sticks: Sticks;
+  /** Si el dron se ha estrellado, la explicación ("Chocaste contra un árbol a 4.2 m/s") */
+  crash: string | null;
 }
 
 /** Marcadores que se dibujan en la escena (alturas sobre el suelo) */
 export type MarkerSpec =
   | { kind: 'box'; x: number; y: number; z: number; halfSize: number; active: boolean }
-  | { kind: 'gate'; x: number; z: number; radius: number; state: 'next' | 'pending' | 'done' }
+  | {
+      kind: 'gate';
+      x: number;
+      z: number;
+      radius: number;
+      state: 'next' | 'pending' | 'done';
+      /** Franja de altura por la que hay que pasar (puertas reales); sin ella, columna desde el suelo */
+      minAltitude?: number;
+      maxAltitude?: number;
+    }
   | { kind: 'path'; points: { x: number; z: number }[] }
   | { kind: 'altitude'; y: number }
   | { kind: 'groundCircle'; x: number; z: number; radius: number }
@@ -239,10 +251,14 @@ export class YawTurnGoal implements Goal {
   }
 }
 
-/** Pasar por una serie de puertas en orden (opcionalmente con una orientación respecto al piloto). */
+/**
+ * Pasar por una serie de puntos en orden: columnas en el campo libre o puertas reales de un escenario
+ * (estas con franja de altura: pasar por encima de la puerta no cuenta). Opcionalmente, con una
+ * orientación respecto al piloto.
+ */
 export class GatesGoal implements Goal {
   readonly instruction: string;
-  private readonly gates: { x: number; z: number }[];
+  private readonly gates: Waypoint[];
   private readonly radius: number;
   private readonly orientation: Orientation | null;
   private next = 0;
@@ -250,7 +266,7 @@ export class GatesGoal implements Goal {
   private readonly pathError = new RmsAccumulator();
 
   constructor(
-    gates: { x: number; z: number }[],
+    gates: Waypoint[],
     instruction: string,
     orientation: Orientation | null = null,
     radius = 1.2,
@@ -275,8 +291,14 @@ export class GatesGoal implements Goal {
       const current = orientationToPilot(frame.x, frame.z, frame.heading);
       if (current !== this.orientation && current !== 'near') hint = ORIENTATION_HINTS[this.orientation];
     }
-    const reached = Math.hypot(frame.x - target.x, frame.z - target.z) <= this.radius;
-    if (reached && !hint) {
+    const inside = Math.hypot(frame.x - target.x, frame.z - target.z) <= this.radius;
+    const low = target.minAltitude ?? -Infinity;
+    const high = target.maxAltitude ?? Infinity;
+    const atHeight = frame.altitude >= low && frame.altitude <= high;
+    if (inside && !atHeight && !hint) {
+      hint = frame.altitude > high ? 'Por encima no cuenta: pasa por dentro de la puerta.' : 'Sube un poco: pasa por dentro.';
+    }
+    if (inside && atHeight && !hint) {
       this.previous = target;
       this.next++;
     }
@@ -290,6 +312,8 @@ export class GatesGoal implements Goal {
       z: gate.z,
       radius: this.radius,
       state: i < this.next ? 'done' : i === this.next ? 'next' : 'pending',
+      minAltitude: gate.minAltitude,
+      maxAltitude: gate.maxAltitude,
     }));
     return [{ kind: 'path', points: this.gates }, ...gates];
   }

@@ -3,10 +3,11 @@
 //   ?demo=hover  → despegue automático y sticks sueltos
 //   ?demo=sticks → despegue y después sticks fijos (para ver el visualizador de sticks desviado)
 //   ?demo=rth    → despegue, se aleja ~15 m y pulsa "volver a casa"
+//   ?demo=crash  → despegue y a toda velocidad hacia delante (en la pista de obstáculos, contra el muro)
 
 import { neutralInput, type ControlInput, type Sticks } from '../core/controlInput';
 
-export const DEMO_NAMES = ['hover', 'sticks', 'rth'] as const;
+export const DEMO_NAMES = ['hover', 'sticks', 'rth', 'crash'] as const;
 export type DemoName = (typeof DEMO_NAMES)[number];
 
 // El despegue automático tarda ~2,5 s; antes de eso mover los sticks lo cancelaría
@@ -42,6 +43,7 @@ export class DemoInput {
       input.actions.takeoffLand = true;
       this.started = true;
     }
+    if (this.name === 'crash' && this.elapsed > STICKS_DEMO_DELAY_SECONDS) input.sticks.pitch = 1;
     if (this.name === 'sticks' && this.elapsed > STICKS_DEMO_DELAY_SECONDS) {
       input.sticks = { ...STICKS_DEMO_POSITION };
     }

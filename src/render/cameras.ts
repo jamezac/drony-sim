@@ -39,10 +39,14 @@ export class ChaseCamera {
     this.update(target, heading, 0);
   }
 
-  update(target: THREE.Vector3, heading: number, dt: number): void {
+  /**
+   * @param heading rumbo del dron, o null para no seguirlo: tras un crash el dron vuelca y su
+   *   rumbo da media vuelta, y la cámara acabaría rodeándolo y metida dentro del obstáculo
+   */
+  update(target: THREE.Vector3, heading: number | null, dt: number): void {
     const { chaseDistance, chaseHeight, chasePositionStiffness, chaseYawStiffness } = renderConfig;
-    if (!this.initialized) this.yaw = heading;
-    else this.yaw += wrapAngle(heading - this.yaw) * (1 - Math.exp(-chaseYawStiffness * dt));
+    if (!this.initialized) this.yaw = heading ?? this.yaw;
+    else if (heading !== null) this.yaw += wrapAngle(heading - this.yaw) * (1 - Math.exp(-chaseYawStiffness * dt));
 
     // Detrás del dron = opuesto a su morro: (sin ψ, 0, cos ψ)
     desired.set(Math.sin(this.yaw) * chaseDistance, chaseHeight, Math.cos(this.yaw) * chaseDistance).add(target);

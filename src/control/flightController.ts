@@ -108,7 +108,7 @@ export class FlightController {
   update(state: DroneState, phase: FlightPhase, sticks: Sticks, mode: FlightModeParams, dt: number): number[] {
     const startingRth = phase === 'returning' && this.lastPhase !== 'returning';
     this.lastPhase = phase;
-    if (phase === 'disarmed' || phase === 'armed') {
+    if (phase === 'disarmed' || phase === 'armed' || phase === 'crashed') {
       const idle = phase === 'armed' ? droneConfig.idleThrustFraction * droneConfig.maxThrustPerMotor : 0;
       this.motorCommands.fill(idle);
       this.reset(state);

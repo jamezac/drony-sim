@@ -14,6 +14,7 @@ import { FixedStepLoop } from './core/loop';
 import { loadInputSettings, SETTINGS_STORAGE_KEY } from './core/settings';
 import { Simulation } from './core/simulation';
 import { modeParams, nextMode, parseModeName } from './control/modes';
+import { describeCrash } from './physics/collisions';
 import { headingOf, tiltOf } from './physics/drone';
 import { nextWindLevel, parseWindLevel } from './physics/environment';
 import { parseDemoName } from './input/demoInput';
@@ -30,12 +31,22 @@ import {
 import { DroneModel } from './render/droneModel';
 import { MarkerLayer } from './render/markers';
 import { createWorld } from './render/scene';
+import { buildScenarioView, disposeScenarioView } from './render/scenarioView';
 import { Windsock } from './render/windsock';
+import {
+  buildScenario,
+  nextScenario,
+  parseScenarioName,
+  scenarioColliders,
+  type Scenario,
+  type ScenarioName,
+} from './scenarios/scenarios';
 import { frameFromSimulation } from './training/lessonFrame';
 import { LessonRun } from './training/lessonRun';
 import { findLesson, nextLesson, type LessonDefinition } from './training/lessons';
 import { loadRecords, saveIfRecord } from './training/records';
 import { Hud } from './ui/hud';
+import { CrashOverlay } from './ui/crashOverlay';
 import { LessonPanel } from './ui/lessonPanel';
 import { PipFrame } from './ui/pipFrame';
 import { LessonMenu, ResultsDialog } from './ui/menus';
@@ -48,6 +59,8 @@ import './style.css';
 
 // Fotogramas a renderizar antes de avisar a `npm run check` de que la página está lista
 const FRAMES_BEFORE_READY = 10;
+// ?demo=crash se estrella hacia los 6 s; se espera a que el dron esté ya caído
+const CRASH_DEMO_READY_SECONDS = 2;
 // ?demo=sticks mueve los sticks a los 4 s; damos 1,5 s más para que se vea el dron moviéndose
 const STICKS_DEMO_READY_SECONDS = 5.5;
 // ?demo=rth pulsa "volver a casa" a los 8 s; a los 11 ya está subiendo o volviendo
@@ -65,7 +78,7 @@ function byId<T extends HTMLElement>(id: string): T {
 // Parámetros de la URL: ?demo=hover|sticks|rth (vuelo automático), ?mode=cine|normal|sport|atti,
 // ?wind=calma|moderado|fuerte, ?battery=25 (batería inicial en %), ?graph=1,
 // ?lesson=<id> (empezar una lección), ?menu=lecciones (abrir el menú de lecciones),
-// ?camera=chase|pilot|fpv
+// ?camera=chase|pilot|fpv, ?scenario=libre|parque|ciudad|obstaculos
 const params = new URLSearchParams(window.location.search);
 const demo = parseDemoName(params.get('demo'));
 
@@ -109,6 +122,25 @@ const stickView = new StickView(hudRoot);
 const graph = new TelemetryGraph(hudRoot, params.get('graph') === '1');
 const lessonPanel = new LessonPanel(hudRoot);
 const pipFrame = new PipFrame(hudRoot);
+const crashOverlay = new CrashOverlay(hudRoot);
+
+// --- Escenario ---
+let scenario: Scenario = buildScenario('libre');
+let scenarioView: THREE.Group | null = null;
+
+/** Cambia de escenario: modelos 3D, obstáculos de la física y conos de referencia. */
+function loadScenario(name: ScenarioName): void {
+  if (scenarioView) {
+    world.scene.remove(scenarioView);
+    disposeScenarioView(scenarioView);
+  }
+  scenario = buildScenario(name);
+  scenarioView = buildScenarioView(scenario);
+  world.scene.add(scenarioView);
+  sim.setColliders(scenarioColliders(scenario.objects));
+  world.setReferenceCones(scenario.showReferenceCones);
+}
+loadScenario(parseScenarioName(params.get('scenario')) ?? 'libre');
 const menu = new LessonMenu(hudRoot, (lesson) => startLesson(lesson));
 const results = new ResultsDialog(hudRoot, {
   retry: () => lessonRun && startLesson(lessonRun.lesson),
@@ -146,7 +178,8 @@ function snapCameras(): void {
 }
 
 function startLesson(lesson: LessonDefinition): void {
-  const { mode, wind, camera, airborne } = lesson.setup;
+  const { mode, wind, camera, airborne, scenario: lessonScenario = 'libre' } = lesson.setup;
+  if (scenario.name !== lessonScenario) loadScenario(lessonScenario);
   sim.resetWith({ mode, wind, batteryPercent: 100 });
   if (airborne) sim.spawnFlying(airborne);
   cameraMode = camera;
@@ -257,6 +290,7 @@ function isReady(): boolean {
   if (frames < FRAMES_BEFORE_READY) return false;
   if (demo === 'sticks') return sim.phase === 'flying' && sim.time > STICKS_DEMO_READY_SECONDS;
   if (demo === 'rth') return sim.phase === 'returning' && sim.time > RTH_DEMO_READY_SECONDS;
+  if (demo === 'crash') return sim.crash !== null && sim.time - sim.crash.time > CRASH_DEMO_READY_SECONDS;
   if (demo !== 'hover') return true;
   if (sim.wind.meanSpeed > 0) return sim.phase === 'flying' && sim.time > WINDY_HOVER_READY_SECONDS;
   const hovering = sim.phase === 'flying' && sim.state.velocity.length() < 0.05;
@@ -284,6 +318,11 @@ world.renderer.setAnimationLoop((timeMs: number) => {
       sim.setMode(frameInput.modeRequest === 'next' ? nextMode(sim.mode) : frameInput.modeRequest);
     }
     if (frameInput.cycleWind) sim.setWind(nextWindLevel(sim.wind.level));
+    if (frameInput.cycleScenario) {
+      loadScenario(nextScenario(scenario.name));
+      sim.reset();
+      snapCameras();
+    }
   }
   pendingActions = {
     toggleMotors: pendingActions.toggleMotors || frameInput.actions.toggleMotors,
@@ -304,7 +343,7 @@ world.renderer.setAnimationLoop((timeMs: number) => {
   pose.position.lerpVectors(sim.previous.position, sim.state.position, alpha);
   pose.orientation.slerpQuaternions(sim.previous.orientation, sim.state.orientation, alpha);
   drone.update(pose, paused ? 0 : frameSeconds);
-  chase.update(pose.position, headingOf(pose.orientation), frameSeconds);
+  chase.update(pose.position, sim.crash ? null : headingOf(pose.orientation), frameSeconds);
   pilot.update(pose.position, frameSeconds);
   fpv.update(pose.position, pose.orientation, headingOf(pose.orientation), frameInput.gimbal, frameSeconds);
   world.followWithSun(pose.position);
@@ -345,7 +384,10 @@ world.renderer.setAnimationLoop((timeMs: number) => {
     gamepadName: frameInput.gamepadName,
     camera: cameraMode,
     gimbalDegrees: fpv.pitch * RAD_TO_DEG,
+    scenario: scenario.label,
   });
+  // En una lección, el crash se cuenta en la pantalla de resultados
+  crashOverlay.update(sim.crash && !lessonRun ? describeCrash(sim.crash.target, sim.crash.speed) : null);
   stickView.update(frameInput.sticks);
 
   const { telemetry } = sim.controller;

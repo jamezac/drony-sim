@@ -35,6 +35,11 @@ export class LessonRun {
 
   update(frame: LessonFrame, dt: number): void {
     if (this.status !== 'running') return;
+    if (frame.crash) {
+      this.status = 'failed';
+      this.failure = `Te has estrellado. ${frame.crash}.`;
+      return;
+    }
     this.elapsed += dt;
     const goal = this.goals[this.index];
     this.last = goal.update(frame, dt);

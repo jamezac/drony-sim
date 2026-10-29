@@ -46,7 +46,28 @@ export const droneConfig = {
   // Efecto suelo: cerca del suelo el aire que empujan las hélices "rebota" y da más empuje.
   // Factor máximo (pegado al suelo); a más de ~2 diámetros de hélice ya casi no se nota.
   groundEffectMax: 1.3,
+  // Para chocar, el dron es una esfera que envuelve brazos y hélices (brazo 0,105 + hélice 0,06)
+  collisionRadius: 0.17, // m
 } as const;
+
+// ---------------------------------------------------------------------------
+// Colisiones y crash
+// ---------------------------------------------------------------------------
+
+export const collisionConfig = {
+  // Al chocar se pierde casi toda la velocidad contra la superficie (0 = se queda pegado, 1 = rebota igual)
+  restitution: 0.3,
+  // Fracción de la velocidad a lo largo de la superficie que se conserva al rozarla
+  tangentialKeep: 0.6,
+  // Por encima de esta velocidad de impacto contra un obstáculo, las hélices rompen: crash
+  obstacleCrashSpeed: 2.5, // m/s
+  // Contra el suelo aguanta más (las patas absorben): un aterrizaje a fondo en Normal es ~3 m/s
+  groundCrashSpeed: 4, // m/s vertical
+  // Tocar suelo yendo muy rápido en horizontal (rozando el suelo) también es crash
+  groundSkidCrashSpeed: 5, // m/s horizontal
+  // Giro (rad/s) por cada m/s de impacto: el dron sale dando vueltas tras el golpe
+  tumblePerSpeed: 2,
+};
 
 // ---------------------------------------------------------------------------
 // Entorno: viento, límites del mundo

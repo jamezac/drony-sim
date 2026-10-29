@@ -19,6 +19,8 @@ export interface FrameInput extends ControlInput {
   toggleCamera: boolean;
   /** Mostrar u ocultar la miniatura de la FPV (tecla P) */
   togglePip: boolean;
+  /** Pasar al siguiente escenario (tecla N) */
+  cycleScenario: boolean;
   /** Gimbal: +1 arriba, −1 abajo, 0 quieto (teclas Q/Z o LB/RB del mando) */
   gimbal: number;
   spaceMouseConnected: boolean;
@@ -64,6 +66,7 @@ export class InputManager {
         cycleWind: false,
         toggleCamera: false,
         togglePip: false,
+        cycleScenario: false,
         gimbal: 0,
         spaceMouseConnected: false,
         gamepadName: null,
@@ -113,6 +116,7 @@ export class InputManager {
       cycleWind: keyboard.actions.cycleWind,
       toggleCamera: keyboard.actions.toggleCamera,
       togglePip: keyboard.actions.togglePip,
+      cycleScenario: keyboard.actions.cycleScenario,
       gimbal,
       spaceMouseConnected: spaceMouse !== null,
       gamepadName: gamepad?.id ?? null,
