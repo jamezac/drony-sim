@@ -17,6 +17,8 @@ export interface World {
   scene: THREE.Scene;
   /** Mueve el sol (y su sombra) para que siga al dron */
   followWithSun(target: THREE.Vector3): void;
+  /** Muestra u oculta los conos de referencia (en los escenarios con objetos estorban) */
+  setReferenceCones(visible: boolean): void;
 }
 
 function gridTexture(renderer: THREE.WebGLRenderer): THREE.CanvasTexture {
@@ -141,11 +143,15 @@ export function createWorld(canvas: HTMLCanvasElement): World {
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
-  scene.add(ground, helipad(), referenceCones());
+  const cones = referenceCones();
+  scene.add(ground, helipad(), cones);
 
   return {
     renderer,
     scene,
+    setReferenceCones(visible) {
+      cones.visible = visible;
+    },
     followWithSun(target) {
       sun.position.copy(target).add(sunOffset);
       sun.target.position.copy(target);

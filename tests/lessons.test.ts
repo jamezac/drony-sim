@@ -28,6 +28,7 @@ function frame(partial: Partial<LessonFrame> = {}): LessonFrame {
     phase: 'flying',
     onGround: false,
     sticks: neutralSticks(),
+    crash: null,
     ...partial,
   };
 }
@@ -164,10 +165,27 @@ describe('lecciones con la simulación real', () => {
     });
   }
 
-  it('hay 10 lecciones con identificadores únicos, encadenadas', () => {
-    expect(LESSONS).toHaveLength(10);
-    expect(new Set(LESSONS.map((l) => l.id)).size).toBe(10);
-    expect(nextLesson(LESSONS[9])).toBeNull();
+  it('hay 12 lecciones con identificadores únicos, encadenadas', () => {
+    expect(LESSONS).toHaveLength(12);
+    expect(new Set(LESSONS.map((l) => l.id)).size).toBe(12);
+    expect(nextLesson(LESSONS[11])).toBeNull();
+  });
+
+  it('puertas con franja de altura: pasar por encima no cuenta', () => {
+    const goal = new GatesGoal([{ x: 0, z: -12, minAltitude: 0.3, maxAltitude: 2.7 }], 'puerta');
+    const over = goal.update(frame({ z: -12, altitude: 4 }));
+    expect(over.done).toBe(false);
+    expect(over.hint).toContain('Por encima');
+    expect(goal.update(frame({ z: -12, altitude: 1.5 })).done).toBe(true);
+  });
+
+  it('estrellarse hace fallar la lección', () => {
+    const lesson = findLesson('obstaculos');
+    if (!lesson) throw new Error('falta la lección');
+    const run = new LessonRun(lesson);
+    run.update(frame({ crash: 'Chocaste contra un muro a 8.0 m/s' }), 0.1);
+    expect(run.status).toBe('failed');
+    expect(run.failure).toContain('muro');
   });
 
   it('lección 1: despegue automático, hover y aterrizaje automático → completada', () => {

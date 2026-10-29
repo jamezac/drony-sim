@@ -733,3 +733,37 @@ button.secondary {
 .hud-nowrap {
   white-space: nowrap;
 }
+
+/* --- Aviso de crash --- */
+
+.crash-overlay {
+  position: absolute;
+  /* Por encima del centro, que es donde las cámaras exteriores muestran el dron caído */
+  top: 12%;
+  left: 50%;
+  width: min(440px, calc(100% - 32px));
+  padding: 16px 20px;
+  text-align: center;
+  background: rgb(15 20 25 / 88%);
+  border: 2px solid var(--bad);
+  border-radius: 10px;
+  transform: translateX(-50%);
+}
+
+.crash-title {
+  margin: 0 0 6px;
+  color: var(--bad);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.crash-reason {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+.crash-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}

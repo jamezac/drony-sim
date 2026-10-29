@@ -56,11 +56,14 @@ function build(spec: MarkerSpec): THREE.Object3D {
       const color = COLORS[spec.state];
       // Solo la siguiente destaca; las demás, casi transparentes para no tapar el dron
       const opacity = spec.state === 'next' ? 0.3 : 0.06;
+      // Con franja de altura (puerta real), la columna ocupa solo la abertura
+      const bottom = spec.minAltitude ?? 0;
+      const height = spec.maxAltitude !== undefined ? spec.maxAltitude - bottom : GATE_HEIGHT;
       const column = new THREE.Mesh(
-        new THREE.CylinderGeometry(spec.radius, spec.radius, GATE_HEIGHT, 32, 1, true),
+        new THREE.CylinderGeometry(spec.radius, spec.radius, height, 32, 1, true),
         translucent(color, opacity),
       );
-      column.position.set(spec.x, GATE_HEIGHT / 2, spec.z);
+      column.position.set(spec.x, rest + bottom + height / 2, spec.z);
       return column;
     }
     case 'path': {

@@ -1,16 +1,17 @@
 // La simulación completa sin navegador: estado del dron + máquina de estados + controlador +
-// física + entorno (viento, efecto suelo) + batería.
+// física + entorno (viento, efecto suelo) + batería + choques con los obstáculos del escenario.
 // No sabe nada de Three.js más allá de sus tipos matemáticos, así que se puede probar en Vitest.
 
+import { Vector3 } from 'three';
 import { FlightController } from '../control/flightController';
 import { FlightStateMachine, type FlightPhase } from '../control/flightState';
 import { ModeBlender, modeParams, type FlightModeName } from '../control/modes';
 import { Battery } from '../physics/battery';
+import { resolveCollisions, type Collider, type CrashTarget } from '../physics/collisions';
 import { copyDroneState, createDroneState, MOTOR_COUNT, type DroneState } from '../physics/drone';
 import { stepDynamics, type AirConditions } from '../physics/dynamics';
 import { applyGroundContact, groundEffectFactor, Wind } from '../physics/environment';
-import { Vector3 } from 'three';
-import { droneConfig, simConfig, windConfig, type WindLevel } from './config';
+import { collisionConfig, droneConfig, simConfig, windConfig, type WindLevel } from './config';
 import type { ControlInput } from './controlInput';
 
 export interface SimulationOptions {
@@ -29,6 +30,15 @@ export interface AirborneStart {
   heading: number;
 }
 
+/** Cómo y cuándo se estrelló el dron */
+export interface CrashInfo {
+  target: CrashTarget;
+  /** Velocidad del impacto (m/s) */
+  speed: number;
+  /** Momento del choque (tiempo de simulación, s) */
+  time: number;
+}
+
 const MOTORS_OFF = new Array<number>(MOTOR_COUNT).fill(0);
 const UP = new Vector3(0, 1, 0);
 
@@ -45,6 +55,10 @@ export class Simulation {
   private readonly blender: ModeBlender;
   private initialBattery: number;
   private readonly air: AirConditions;
+  /** Obstáculos del escenario actual */
+  private colliders: readonly Collider[] = [];
+  /** El choque que ha estrellado el dron, o null */
+  crash: CrashInfo | null = null;
   time = 0;
 
   constructor(options: SimulationOptions | FlightModeName = {}) {
@@ -69,6 +83,11 @@ export class Simulation {
 
   setWind(level: WindLevel): void {
     this.wind.level = level;
+  }
+
+  /** Obstáculos con los que puede chocar el dron (los del escenario). */
+  setColliders(colliders: readonly Collider[]): void {
+    this.colliders = colliders;
   }
 
   get phase(): FlightPhase {
@@ -113,9 +132,42 @@ export class Simulation {
     // Efecto suelo según la altura (las hélices están solo ~2 cm por encima del centro de masas)
     this.air.thrustFactor = groundEffectFactor(this.state.position.y);
     stepDynamics(this.state, commands, dt, this.air);
+    const impact = resolveCollisions(this.state, this.colliders);
+    // Golpe contra el suelo: la velocidad justo antes de que el contacto la anule
+    const wasAirborne = !this.state.onGround;
+    const verticalImpact = Math.max(0, -this.state.velocity.y);
+    const skid = Math.hypot(this.state.velocity.x, this.state.velocity.z);
     applyGroundContact(this.state);
-    this.battery.update(this.state.motorThrust, this.flight.phase !== 'disarmed', dt);
+    this.detectCrash(impact.speed, impact.label, wasAirborne && this.state.onGround, verticalImpact, skid);
+
+    const motorsOn = this.flight.phase !== 'disarmed' && this.flight.phase !== 'crashed';
+    this.battery.update(this.state.motorThrust, motorsOn, dt);
     this.time += dt;
+  }
+
+  /**
+   * ¿Ha sido el golpe lo bastante fuerte para romper hélices? Contra un obstáculo basta un choque
+   * moderado; contra el suelo, las patas aguantan aterrizajes firmes, pero no una caída.
+   */
+  private detectCrash(
+    obstacleSpeed: number,
+    obstacle: CrashTarget | null,
+    touchedGround: boolean,
+    verticalImpact: number,
+    skid: number,
+  ): void {
+    if (this.crash) return;
+    const { obstacleCrashSpeed, groundCrashSpeed, groundSkidCrashSpeed } = collisionConfig;
+    if (obstacle && obstacleSpeed > obstacleCrashSpeed) {
+      this.crashInto(obstacle, obstacleSpeed);
+    } else if (touchedGround && (verticalImpact > groundCrashSpeed || skid > groundSkidCrashSpeed)) {
+      this.crashInto('suelo', Math.max(verticalImpact, skid));
+    }
+  }
+
+  private crashInto(target: CrashTarget, speed: number): void {
+    this.crash = { target, speed, time: this.time };
+    this.flight.crash();
   }
 
   /** Cambia modo, viento y batería inicial y vuelve a empezar (al iniciar una lección). */
@@ -150,6 +202,7 @@ export class Simulation {
     this.blender.snap(modeParams(this.currentMode));
     this.battery = new Battery(this.initialBattery);
     this.wind.reset();
+    this.crash = null;
     this.time = 0;
   }
 }

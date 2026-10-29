@@ -38,6 +38,11 @@ const PAGES: { name: string; path: string }[] = [
   { name: 'lesson-square', path: '/?lesson=cuadrado' },
   { name: 'fpv', path: '/?camera=fpv&demo=sticks' },
   { name: 'pilot-pip', path: '/?camera=pilot&demo=sticks' },
+  { name: 'parque', path: '/?scenario=parque&demo=hover' },
+  { name: 'ciudad', path: '/?scenario=ciudad&demo=hover' },
+  { name: 'obstaculos', path: '/?scenario=obstaculos&demo=hover' },
+  { name: 'crash', path: '/?scenario=obstaculos&demo=crash' },
+  { name: 'lesson-obstacles', path: '/?lesson=obstaculos&demo=hover' },
   { name: 'devices', path: '/devices.html' },
 ];
 

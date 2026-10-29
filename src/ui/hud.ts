@@ -45,6 +45,8 @@ export interface HudData {
   camera: CameraMode;
   /** Inclinación del gimbal (grados), se muestra en la FPV */
   gimbalDegrees: number;
+  /** Nombre del escenario actual */
+  scenario: string;
 }
 
 function element(tag: string, className: string, text = ''): HTMLElement {
@@ -79,6 +81,7 @@ export class Hud {
   private readonly input = element('p', 'hud-input');
   private readonly gamepad = element('p', 'hud-input hud-input-on');
   private readonly camera = element('p', 'hud-input');
+  private readonly scenario = element('p', 'hud-input');
   /** Símbolo de la tecla de ajustes en el teclado del usuario (º, |, `...) */
   // Con aspecto de tecla: símbolos como | se confundirían con los separadores del texto
   private readonly settingsKey = element('kbd', 'hud-key', keyLabelFrom(null, SETTINGS_KEY_CODE));
@@ -93,13 +96,14 @@ export class Hud {
     panel.append(element('h1', 'hud-title', 'Drony Sim'), status, this.gps, this.battery, this.wind, metrics);
 
     const inputPanel = element('div', 'hud-panel hud-input-panel');
-    inputPanel.append(this.input, this.gamepad, this.camera);
+    inputPanel.append(this.input, this.gamepad, this.camera, this.scenario);
 
     const help = element(
       'p',
       'hud-help',
       'Espacio / botón izq.: despegar o aterrizar · E: motores · H: volver a casa · 1-4 / botón dcho.: modo · ' +
-        'W/S: altura · A/D: giro · ↑↓←→: mover · C: cámara · Q/Z: gimbal · P: miniatura · V: viento · R: reiniciar · ' +
+        'W/S: altura · A/D: giro · ↑↓←→: mover · C: cámara · Q/Z: gimbal · P: miniatura · N: escenario · V: viento · ' +
+        'R: reiniciar · ' +
         'G: gráfica · ',
     );
     const lessons = element('button', 'link-button', 'Lecciones (L)');
@@ -158,6 +162,7 @@ export class Hud {
     this.gamepad.textContent = `● Mando: ${data.gamepadName?.split('(')[0].trim() ?? ''}`;
     const gimbal = data.camera === 'fpv' ? ` · gimbal ${Math.round(data.gimbalDegrees)}° (Q/Z)` : '';
     this.camera.textContent = `${CAMERA_LABELS[data.camera]}${gimbal} (C)`;
+    this.scenario.textContent = `Escenario: ${data.scenario} (N)`;
 
     this.radar.update(data.x, data.z, data.heading, data.windX, data.windZ);
   }

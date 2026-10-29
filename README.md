@@ -24,4 +24,4 @@ npm run dev     # abre http://localhost:5173 en Chrome o Edge
 
 ## Estado
 
-🚧 Fase 6 (cámaras) en curso: cámara FPV con gimbal estabilizado, vista del piloto y miniatura de la FPV. Las lecciones (fase 5) ya están disponibles con la tecla L. El plan completo está en [docs/PLAN.md](docs/PLAN.md).
+🚧 Fase 7 (escenarios) en curso: parque, ciudad y pista de obstáculos (tecla N), colisiones y crash, y dos lecciones nuevas (12 en total, tecla L). El plan completo está en [docs/PLAN.md](docs/PLAN.md).
