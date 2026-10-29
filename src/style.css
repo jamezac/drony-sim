@@ -270,6 +270,11 @@ a {
   background: var(--bad);
 }
 
+.hud-mode[data-mode='acro'] {
+  color: #fff;
+  background: #c2185b;
+}
+
 .hud-gps {
   margin: 0 0 4px;
   color: var(--ok);

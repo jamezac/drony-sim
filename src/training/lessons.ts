@@ -1,4 +1,5 @@
-// Las 10 lecciones, en orden de dificultad, siguiendo lo que se practica al aprender con un DJI.
+// Las lecciones, en orden de dificultad, siguiendo lo que se practica al aprender con un DJI
+// (y al final, lo que viene después: volar entre obstáculos y el modo Acro de los drones FPV).
 // Cada lección es solo datos: cómo empieza, qué objetivos tiene y cómo se puntúa.
 // Los umbrales de estrellas son orientativos: ajústalos aquí si te resultan fáciles o difíciles.
 
@@ -6,6 +7,7 @@ import type { FlightModeName, WindLevel } from '../core/config';
 import { buildScenario, type ScenarioName } from '../scenarios/scenarios';
 import {
   AltitudeGoal,
+  FlipGoal,
   GatesGoal,
   HoldBoxGoal,
   LandGoal,
@@ -242,6 +244,22 @@ export const LESSONS: LessonDefinition[] = [
       ),
     ],
     rate: (m) => combine(rateMetric('Desvío de la línea', m.pathRms, 1.2, 2.5, 'm'), rateTime(m.time, 40, 70)),
+  },
+  {
+    id: 'flip',
+    title: 'Primer flip en Acro',
+    summary: 'En modo Acro, sin auto-nivelado: da una vuelta completa en el aire y recupera el dron.',
+    skill:
+      'Lo que hacen los drones FPV y el modo M del DJI Avata: tú controlas la inclinación. Cortar el gas en el ' +
+      'flip y darlo al salir es la base de toda la acrobacia.',
+    setup: { mode: 'acro', wind: 'calm', camera: 'chase', airborne: { x: 0, altitude: 15, z: -5, heading: 0 } },
+    goals: () => [
+      new FlipGoal(
+        3,
+        'Corta el gas y lleva el stick adelante (o a un lado) a fondo. Suéltalo al quedar nivelado y vuelve a dar gas.',
+      ),
+    ],
+    rate: (m) => combine(rateMetric('Altura perdida en el flip', m.flipAltitudeLoss, 3, 6, 'm'), rateTime(m.time, 8, 15)),
   },
 ];
 

@@ -8,7 +8,7 @@
 //   4. Se dibuja interpolando entre los dos últimos pasos de física.
 
 import * as THREE from 'three';
-import { flightConfig, simConfig } from './core/config';
+import { flightConfig, fpvSettings, renderConfig, simConfig } from './core/config';
 import { noActions, type ControlActions } from './core/controlInput';
 import { FixedStepLoop } from './core/loop';
 import { loadInputSettings, SETTINGS_STORAGE_KEY } from './core/settings';
@@ -65,6 +65,8 @@ const CRASH_DEMO_READY_SECONDS = 2;
 const STICKS_DEMO_READY_SECONDS = 5.5;
 // ?demo=rth pulsa "volver a casa" a los 8 s; a los 11 ya está subiendo o volviendo
 const RTH_DEMO_READY_SECONDS = 11;
+// ?demo=flip: la captura se hace con el dron ya muy inclinado, en mitad del flip
+const FLIP_DEMO_READY_TILT = (120 * Math.PI) / 180;
 // Con viento el dron nunca está del todo quieto: se espera a que lleve un rato en hover
 const WINDY_HOVER_READY_SECONDS = 8;
 const RAD_TO_DEG = 180 / Math.PI;
@@ -75,7 +77,7 @@ function byId<T extends HTMLElement>(id: string): T {
   return element as T;
 }
 
-// Parámetros de la URL: ?demo=hover|sticks|rth (vuelo automático), ?mode=cine|normal|sport|atti,
+// Parámetros de la URL: ?demo=hover|sticks|rth|crash|flip (vuelo automático), ?mode=cine|normal|sport|atti|acro,
 // ?wind=calma|moderado|fuerte, ?battery=25 (batería inicial en %), ?graph=1,
 // ?lesson=<id> (empezar una lección), ?menu=lecciones (abrir el menú de lecciones),
 // ?camera=chase|pilot|fpv, ?scenario=libre|parque|ciudad|obstaculos
@@ -291,6 +293,7 @@ function isReady(): boolean {
   if (demo === 'sticks') return sim.phase === 'flying' && sim.time > STICKS_DEMO_READY_SECONDS;
   if (demo === 'rth') return sim.phase === 'returning' && sim.time > RTH_DEMO_READY_SECONDS;
   if (demo === 'crash') return sim.crash !== null && sim.time - sim.crash.time > CRASH_DEMO_READY_SECONDS;
+  if (demo === 'flip') return tiltOf(sim.state.orientation) > FLIP_DEMO_READY_TILT;
   if (demo !== 'hover') return true;
   if (sim.wind.meanSpeed > 0) return sim.phase === 'flying' && sim.time > WINDY_HOVER_READY_SECONDS;
   const hovering = sim.phase === 'flying' && sim.state.velocity.length() < 0.05;
@@ -343,15 +346,19 @@ world.renderer.setAnimationLoop((timeMs: number) => {
   pose.position.lerpVectors(sim.previous.position, sim.state.position, alpha);
   pose.orientation.slerpQuaternions(sim.previous.orientation, sim.state.orientation, alpha);
   drone.update(pose, paused ? 0 : frameSeconds);
-  chase.update(pose.position, sim.crash ? null : headingOf(pose.orientation), frameSeconds);
+  // Estrellado o muy inclinado (un flip), el rumbo del dron deja de tener sentido: la cámara no lo sigue
+  const followHeading = !sim.crash && tiltOf(pose.orientation) < renderConfig.chaseFollowMaxTilt;
+  chase.update(pose.position, followHeading ? headingOf(pose.orientation) : null, frameSeconds);
   pilot.update(pose.position, frameSeconds);
-  fpv.update(pose.position, pose.orientation, headingOf(pose.orientation), frameInput.gimbal, frameSeconds);
+  // En Acro la cámara va fija al cuerpo, como en un dron FPV: un gimbal no puede seguir un flip
+  const { positionHold: gps, selfLevel } = modeParams(sim.mode);
+  const stabilized = fpvSettings.stabilized && selfLevel;
+  fpv.update(pose.position, pose.orientation, headingOf(pose.orientation), frameInput.gimbal, frameSeconds, stabilized);
   world.followWithSun(pose.position);
   windsock.update(sim.wind.velocity, frameSeconds);
 
   const { velocity, position } = sim.state;
   const horizontalSpeed = Math.hypot(velocity.x, velocity.z);
-  const gps = modeParams(sim.mode).positionHold;
   const distance = Math.hypot(position.x, position.z);
   const wind = sim.wind.velocity;
   hud.update({
@@ -369,6 +376,8 @@ world.renderer.setAnimationLoop((timeMs: number) => {
       phase: sim.phase,
       forcedLanding: sim.forcedLanding,
       gps,
+      acro: !selfLevel,
+      inLesson: lessonRun !== null,
       altitude: sim.altitude,
       distance,
       windSpeed: Math.hypot(wind.x, wind.z),

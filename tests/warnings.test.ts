@@ -6,6 +6,8 @@ const calmFlight: WarningInput = {
   phase: 'flying',
   forcedLanding: false,
   gps: true,
+  acro: false,
+  inLesson: false,
   altitude: 10,
   distance: 20,
   windSpeed: 2,
@@ -34,5 +36,13 @@ describe('activeWarnings', () => {
   it('avisa de ATTI, del techo de altura, del límite de distancia y del viento fuerte', () => {
     const warnings = activeWarnings({ ...calmFlight, gps: false, altitude: 119.5, distance: 178, windSpeed: 9 });
     expect(warnings.join(' ')).toMatch(/ATTI.*Altura máxima.*Límite de distancia.*Viento fuerte/);
+  });
+
+  it('en Acro explica cómo volver a un modo que se nivela solo (y no habla de ATTI)', () => {
+    const [warning] = activeWarnings({ ...calmFlight, gps: false, acro: true });
+    expect(warning).toContain('Acro');
+    expect(warning).toContain('Normal');
+    // En una lección no se puede cambiar de modo: no lo sugiere
+    expect(activeWarnings({ ...calmFlight, gps: false, acro: true, inLesson: true })[0]).not.toContain('Normal');
   });
 });

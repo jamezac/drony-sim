@@ -26,7 +26,7 @@ export interface FrameInput extends ControlInput {
   spaceMouseConnected: boolean;
   /** Nombre del mando genérico conectado, o null */
   gamepadName: string | null;
-  /** Cambio de modo pedido: un modo concreto (teclas 1-4), 'next' (botón) o null */
+  /** Cambio de modo pedido: un modo concreto (teclas 1-5), 'next' (botón) o null */
   modeRequest: FlightModeName | 'next' | null;
 }
 

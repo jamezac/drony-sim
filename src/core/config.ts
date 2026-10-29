@@ -67,6 +67,9 @@ export const collisionConfig = {
   groundSkidCrashSpeed: 5, // m/s horizontal
   // Giro (rad/s) por cada m/s de impacto: el dron sale dando vueltas tras el golpe
   tumblePerSpeed: 2,
+  // Tocar el suelo más inclinado que esto (p. ej. boca abajo en Acro) es crash aunque sea despacio:
+  // las hélices golpean el suelo
+  groundCrashTilt: 60 * DEG,
 };
 
 // ---------------------------------------------------------------------------
@@ -169,7 +172,7 @@ export const controlConfig = {
 // Modos de vuelo. Valores aproximados de un DJI Mini.
 // ---------------------------------------------------------------------------
 
-export type FlightModeName = 'cine' | 'normal' | 'sport' | 'atti';
+export type FlightModeName = 'cine' | 'normal' | 'sport' | 'atti' | 'acro';
 
 export interface FlightModeParams {
   /**
@@ -178,6 +181,12 @@ export interface FlightModeParams {
    * pero sigue deslizándose con la inercia (y con el viento, en la fase 4).
    */
   positionHold: boolean;
+  /**
+   * Auto-nivelado: al soltar los sticks el dron se pone horizontal. Sin él (Acro), el stick pide
+   * VELOCIDAD DE GIRO: al soltarlo el dron se queda con la inclinación que tenga, y el throttle
+   * es directo (sin mantener la altura). Los límites de abajo no se usan en Acro (ver acroConfig).
+   */
+  selfLevel: boolean;
   maxSpeed: number; // m/s horizontal (en ATTI la limita solo la física)
   maxClimb: number; // m/s
   maxDescent: number; // m/s
@@ -191,6 +200,7 @@ export const modesConfig: Record<FlightModeName, FlightModeParams> = {
   // Muy suave y lento: primeros vuelos y tomas de vídeo
   cine: {
     positionHold: true,
+    selfLevel: true,
     maxSpeed: 6,
     maxClimb: 1.5,
     maxDescent: 1.5,
@@ -201,6 +211,7 @@ export const modesConfig: Record<FlightModeName, FlightModeParams> = {
   // El de por defecto de un DJI
   normal: {
     positionHold: true,
+    selfLevel: true,
     maxSpeed: 10,
     maxClimb: 3,
     maxDescent: 3,
@@ -211,6 +222,7 @@ export const modesConfig: Record<FlightModeName, FlightModeParams> = {
   // Rápido: más inclinación, arranca y frena más fuerte (y tarda más en pararse)
   sport: {
     positionHold: true,
+    selfLevel: true,
     maxSpeed: 16,
     maxClimb: 5,
     maxDescent: 3.5,
@@ -221,6 +233,7 @@ export const modesConfig: Record<FlightModeName, FlightModeParams> = {
   // Sin GPS: mantiene la altura (barómetro) pero no la posición
   atti: {
     positionHold: false,
+    selfLevel: true,
     maxSpeed: 10,
     maxClimb: 3,
     maxDescent: 3,
@@ -228,6 +241,38 @@ export const modesConfig: Record<FlightModeName, FlightModeParams> = {
     maxYawRate: 60 * DEG,
     maxAccel: 5,
   },
+  // Sin GPS ni auto-nivelado: el dron hace exactamente lo que dicen los sticks (rates en acroConfig).
+  // Estos límites solo se usan en las fases automáticas (despegue, aterrizaje) y al salir de Acro:
+  // los de Sport, para que pasar de Acro a Sport no los cambie.
+  acro: {
+    positionHold: false,
+    selfLevel: false,
+    maxSpeed: 16,
+    maxClimb: 5,
+    maxDescent: 3.5,
+    maxTilt: 35 * DEG,
+    maxYawRate: 130 * DEG,
+    maxAccel: 8,
+  },
+};
+
+/** Rates de un eje en Acro, con la fórmula de Betaflight (ver control/acro.ts) */
+export interface AcroAxisRates {
+  /** Pendiente en el centro: 1 = 200 °/s por unidad de stick */
+  rcRate: number;
+  /** Cuánto se acelera el giro hacia los extremos: máximo = 200·rcRate / (1 − superRate) °/s */
+  superRate: number;
+  /** Suaviza el centro sin cambiar el máximo (0 = lineal). Ojo: la entrada ya tiene su propia expo. */
+  expo: number;
+}
+
+// Acro (o "Manual"), como un dron FPV con Betaflight: los sticks piden velocidad de giro.
+export const acroConfig = {
+  // Alabeo y cabeceo: 500 °/s a fondo, un flip completo en menos de un segundo. Los pilotos de
+  // carreras usan 700-900 °/s; para aprender es mejor algo más tranquilo.
+  rollPitch: { rcRate: 1, superRate: 0.6, expo: 0 } satisfies AcroAxisRates,
+  // Giro: 333 °/s a fondo
+  yaw: { rcRate: 1, superRate: 0.4, expo: 0 } satisfies AcroAxisRates,
 };
 
 // Al cambiar de modo, los límites pasan del modo anterior al nuevo de forma gradual (exponencial
@@ -410,6 +455,9 @@ export const renderConfig = {
   // Rigidez del "muelle" que sigue al dron (1/s): más alto = sigue más pegado
   chasePositionStiffness: 6,
   chaseYawStiffness: 3,
+  // Más inclinado que esto (un flip en Acro), el rumbo del dron deja de tener sentido: al pasar
+  // por la vertical da media vuelta. La cámara deja de seguirlo hasta que vuelve a nivelarse.
+  chaseFollowMaxTilt: 60 * DEG,
   groundSize: 400, // m
   coneSpacing: 10, // m entre conos de referencia
   coneRange: 40, // m: hasta dónde llegan los conos desde el home

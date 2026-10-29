@@ -465,7 +465,7 @@ Con esto WSL y Windows comparten `localhost` en los dos sentidos.
 
 **Objetivo:** lo avanzado.
 
-**Archivos:** `control/modes.ts` (Acro), `control/flightState.ts` (Órbita, Waypoints), `ui/menus.ts`.
+**Archivos:** `control/modes.ts` y `control/acro.ts` (Acro), `control/flightState.ts` (Órbita, Waypoints), `ui/menus.ts`.
 
 **Claves técnicas:**
 - **Acro:**
@@ -477,6 +477,8 @@ Con esto WSL y Windows comparten `localhost` en los dos sentidos.
 - **Waypoints:** se colocan puntos en un mapa y el dron vuela la misión.
 
 **Captura esperada** (`?demo=orbit`): el dron orbitando el poste y el HUD mostrando "Órbita · R 10 m".
+
+**Hecho (parte A, Acro):** tecla `5` (fuera del ciclo del botón; desde Acro el botón vuelve a Normal), rates Betaflight ajustables en el panel, throttle híbrido, FPV fija al cuerpo, crash al tocar el suelo boca abajo, lección 13 ("Primer flip") y captura `?mode=acro&demo=flip`.
 
 **Hecho cuando:** puedes hacer un flip en Acro, y la órbita y los waypoints vuelan solos.
 

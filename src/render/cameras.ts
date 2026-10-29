@@ -10,7 +10,7 @@
 // pero con algo de retraso, así se nota el giro y no marea.
 
 import * as THREE from 'three';
-import { fpvSettings, gimbalConfig, renderConfig } from '../core/config';
+import { gimbalConfig, renderConfig } from '../core/config';
 
 function wrapAngle(angle: number): number {
   return Math.atan2(Math.sin(angle), Math.cos(angle));
@@ -166,8 +166,16 @@ export class FpvCamera {
   /**
    * @param input −1..1 para mover el gimbal hacia abajo/arriba (teclas Q/Z o gatillos del mando)
    * @param heading rumbo del dron
+   * @param stabilized gimbal estabilizado, o cámara fija al cuerpo
    */
-  update(position: THREE.Vector3, orientation: THREE.Quaternion, heading: number, input: number, dt: number): void {
+  update(
+    position: THREE.Vector3,
+    orientation: THREE.Quaternion,
+    heading: number,
+    input: number,
+    dt: number,
+    stabilized: boolean,
+  ): void {
     this.pitch = gimbalStep(this.pitch, input, dt);
     // El gimbal sigue el rumbo del dron con un poco de retraso, por el camino corto
     if (!this.initialized) this.yaw = heading;
@@ -177,7 +185,7 @@ export class FpvCamera {
     const { x, y, z } = gimbalConfig.offset;
     cameraOffset.set(x, y, z).applyQuaternion(orientation);
     this.camera.position.copy(position).add(cameraOffset);
-    fpvOrientation(orientation, this.yaw, this.pitch, fpvSettings.stabilized, this.camera.quaternion);
+    fpvOrientation(orientation, this.yaw, this.pitch, stabilized, this.camera.quaternion);
   }
 }
 

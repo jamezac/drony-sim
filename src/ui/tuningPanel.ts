@@ -8,6 +8,7 @@
 
 import GUI from 'three/addons/libs/lil-gui.module.min.js';
 import {
+  acroConfig,
   controlConfig,
   fpvSettings,
   gamepadConfig,
@@ -86,6 +87,18 @@ export function createTuningPanel(input: InputManager): TuningPanel {
     folder.add(params, 'maxAccel', 1, 15, 0.5).name('Aceleración (m/s²)');
     folder.close();
   }
+  // Acro: rates estilo Betaflight. A fondo gira 200 · RC rate / (1 − super rate) °/s.
+  const acro = modes.addFolder('Acro (rates)');
+  for (const [axis, label] of [
+    ['rollPitch', 'Alabeo/cabeceo'],
+    ['yaw', 'Giro'],
+  ] as const) {
+    const rates = acroConfig[axis];
+    acro.add(rates, 'rcRate', 0.2, 2, 0.05).name(`${label} · RC rate`);
+    acro.add(rates, 'superRate', 0, 0.9, 0.05).name(`${label} · super rate`);
+    acro.add(rates, 'expo', 0, 1, 0.05).name(`${label} · expo`);
+  }
+  acro.close();
   modes.close();
 
   // Entrada: se guarda en el navegador al soltar cada control

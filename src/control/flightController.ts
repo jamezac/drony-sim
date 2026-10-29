@@ -10,10 +10,13 @@
 // objetivo vuelve a 0 con aceleración limitada (frenado suave) y, ya parado, se fija la posición.
 // Sin GPS (ATTI): no hay lazo de velocidad. El stick pide directamente una INCLINACIÓN; al soltarlo
 // el dron se nivela, pero nada lo frena salvo el aire: sigue deslizándose.
-// La altura se mantiene en todos los modos (en un DJI la da el barómetro, no el GPS).
+// La altura se mantiene en todos esos modos (en un DJI la da el barómetro, no el GPS).
+// Acro: solo queda el lazo interior. El stick pide velocidad de giro y el throttle, empuje
+// (ver control/acro.ts). Las fases automáticas (despegue, aterrizaje) sí se nivelan.
 
 import { Matrix4, Quaternion, Vector3 } from 'three';
 import {
+  acroConfig,
   controlConfig,
   droneConfig,
   flightConfig,
@@ -23,6 +26,7 @@ import {
 } from '../core/config';
 import type { Sticks } from '../core/controlInput';
 import { headingOf, MOTOR_COUNT, tiltOf, type DroneState } from '../physics/drone';
+import { acroRate, acroThrust } from './acro';
 import type { FlightPhase } from './flightState';
 import { mixMotors } from './mixer';
 import { Pid } from './pid';
@@ -118,6 +122,7 @@ export class FlightController {
     const flying = phase === 'flying';
     // En las fases automáticas (despegue, RTH, aterrizaje) los sticks no mueven el dron
     const pilot: Sticks = flying ? sticks : { throttle: 0, yaw: 0, pitch: 0, roll: 0 };
+    if (flying && !mode.selfLevel) return this.acro(state, pilot, dt);
     if (startingRth) this.rth.start(state);
     const rth = phase === 'returning' ? this.rth.update(state) : null;
 
@@ -168,7 +173,16 @@ export class FlightController {
     // 5. Actitud → velocidad angular deseada (ejes del cuerpo)
     this.attitudeToRates(state, yawRateCommand);
 
+    this.telemetry.altitudeSetpoint = this.altitudeSetpoint === null ? null : this.altitudeSetpoint - droneConfig.restHeight;
+    this.telemetry.horizontalSpeedSetpoint = mode.positionHold ? Math.hypot(this.velocitySetpoint.x, this.velocitySetpoint.z) : null;
+    this.telemetry.desiredTilt = tiltOf(this.desiredOrientation);
+
     // 6. Velocidad angular → torque → motores
+    return this.rateLoop(state, collective, dt);
+  }
+
+  /** Lazo interior: velocidad angular deseada (rateSetpoint) → torques → empuje de cada motor. */
+  private rateLoop(state: DroneState, collective: number, dt: number): number[] {
     const omega = state.angularVelocity;
     const { inertia } = droneConfig;
     torque.set(
@@ -176,11 +190,35 @@ export class FlightController {
       inertia.y * this.yawRate.update(rateSetpoint.y, omega.y, dt),
       inertia.z * this.rollRate.update(rateSetpoint.z, omega.z, dt),
     );
-
-    this.telemetry.altitudeSetpoint = this.altitudeSetpoint === null ? null : this.altitudeSetpoint - droneConfig.restHeight;
-    this.telemetry.horizontalSpeedSetpoint = mode.positionHold ? Math.hypot(this.velocitySetpoint.x, this.velocitySetpoint.z) : null;
-    this.telemetry.desiredTilt = tiltOf(this.desiredOrientation);
     return mixMotors(collective, torque, this.motorCommands);
+  }
+
+  /**
+   * Acro: los sticks dan la velocidad de giro y el empuje total, sin más lazos por encima.
+   * Los objetivos de los demás lazos siguen al dron, para que al volver a un modo con
+   * auto-nivelado partan de cómo está ahora: se nivela, frena y fija la altura sin dar tirones.
+   */
+  private acro(state: DroneState, sticks: Sticks, dt: number): number[] {
+    const { rollPitch, yaw } = acroConfig;
+    // Ejes del cuerpo (x derecha, y arriba, z atrás): girar en +x levanta el morro y en +z levanta
+    // el lado derecho, así que "adelante" y "derecha" son giros negativos. El yaw horario, también.
+    rateSetpoint.set(
+      -acroRate(sticks.pitch, rollPitch),
+      -acroRate(sticks.yaw, yaw),
+      -acroRate(sticks.roll, rollPitch),
+    );
+
+    this.yawSetpoint = headingOf(state.orientation);
+    this.velocitySetpoint.set(state.velocity.x, 0, state.velocity.z);
+    this.holding = false;
+    this.altitudeSetpoint = null;
+    this.velocityX.reset();
+    this.velocityZ.reset();
+    this.verticalSpeed.reset();
+    this.desiredOrientation.copy(state.orientation);
+    Object.assign(this.telemetry, { altitudeSetpoint: null, horizontalSpeedSetpoint: null, desiredTilt: tiltOf(state.orientation) });
+
+    return this.rateLoop(state, acroThrust(sticks.throttle), dt);
   }
 
   /**

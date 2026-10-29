@@ -1,4 +1,4 @@
-// Teclado como respaldo (Modo 2): W/S altura, A/D giro, flechas adelante/atrás/lados, 1-4 modo,
+// Teclado como respaldo (Modo 2): W/S altura, A/D giro, flechas adelante/atrás/lados, 1-4 modo, 5 Acro,
 // H vuelta a casa, V nivel de viento, C cámara, Q/Z gimbal (arriba/abajo), P miniatura FPV, N escenario.
 // Una tecla es todo o nada, así que el valor sube en rampa mientras está pulsada: se parece
 // más a empujar un stick poco a poco y evita tirones bruscos del dron.
@@ -29,12 +29,13 @@ const GIMBAL_KEYS = { up: 'KeyQ', down: 'KeyZ' } as const;
 
 type ActionName = keyof typeof ACTION_KEYS;
 
-/** Teclas 1-4: elegir modo directamente */
+/** Teclas 1-5: elegir modo directamente (5 = Acro, que no está en el ciclo del botón) */
 const MODE_KEYS: Record<string, FlightModeName> = {
   Digit1: 'cine',
   Digit2: 'normal',
   Digit3: 'sport',
   Digit4: 'atti',
+  Digit5: 'acro',
 };
 
 // Teclas que el navegador usaría para hacer scroll: las capturamos nosotros
@@ -58,7 +59,7 @@ export interface KeyboardSample {
   sticks: Sticks;
   /** Acciones pulsadas desde la última muestra */
   actions: Record<ActionName, boolean>;
-  /** Modo elegido con 1-4 desde la última muestra, o null */
+  /** Modo elegido con 1-5 desde la última muestra, o null */
   mode: FlightModeName | null;
   /** Gimbal: +1 arriba, −1 abajo, 0 quieto */
   gimbal: number;

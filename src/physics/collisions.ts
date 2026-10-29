@@ -115,10 +115,10 @@ export function collideSphere(center: Point, radius: number, collider: Collider)
   }
 }
 
-/** Contra qué se ha estrellado el dron (un obstáculo o el suelo) */
-export type CrashTarget = ObstacleKind | 'suelo';
+/** Contra qué se ha estrellado el dron: un obstáculo, el suelo, o el suelo tocado boca abajo (vuelco) */
+export type CrashTarget = ObstacleKind | 'suelo' | 'vuelco';
 
-const CRASH_TARGETS: Record<CrashTarget, string> = {
+const CRASH_TARGETS: Record<Exclude<CrashTarget, 'vuelco'>, string> = {
   árbol: 'un árbol',
   edificio: 'un edificio',
   banco: 'un banco',
@@ -131,6 +131,7 @@ const CRASH_TARGETS: Record<CrashTarget, string> = {
 };
 
 export function describeCrash(target: CrashTarget, speed: number): string {
+  if (target === 'vuelco') return 'Tocaste el suelo boca abajo: las hélices golpearon el suelo';
   return `Chocaste contra ${CRASH_TARGETS[target]} a ${speed.toFixed(1)} m/s`;
 }
 
