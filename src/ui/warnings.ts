@@ -28,6 +28,8 @@ export function activeWarnings(input: WarningInput): string[] {
     warnings.push('Batería crítica: aterrizaje forzoso. No se puede cancelar.');
   } else if (phase === 'orbiting') {
     warnings.push('Órbita: avance/atrás cambia el radio, lateral la velocidad y el sentido; el throttle, la altura. O para salir.');
+  } else if (phase === 'mission') {
+    warnings.push('Misión: el dron vuela solo y no esquiva obstáculos. Mueve los sticks para tomar el control; H vuelve a casa.');
   } else if (phase === 'returning') {
     warnings.push(
       batteryPercent <= batteryConfig.rthPercent

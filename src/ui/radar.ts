@@ -11,7 +11,7 @@ import { ORIENTATION_LABELS, orientationToPilot } from '../training/orientation'
 const RANGES = [10, 25, 50, 100, 200, 500]; // m: escala del radar según lo lejos que esté
 const SIZE = 150; // px CSS
 
-function cssColor(name: string, fallback: string): string {
+export function cssColor(name: string, fallback: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 }
 
@@ -125,25 +125,36 @@ export class Radar {
     ctx.fill();
   }
 
-  /** Triángulo con la punta (morro) en naranja hacia donde apunta el dron. */
   private drawDrone(x: number, y: number, forwardX: number, forwardY: number): void {
-    const ctx = this.context;
-    const length = 11;
-    const half = 7;
-    const rightX = -forwardY;
-    const rightY = forwardX;
-    const tipX = x + forwardX * length;
-    const tipY = y + forwardY * length;
-    ctx.fillStyle = this.colors.text;
-    ctx.beginPath();
-    ctx.moveTo(tipX, tipY);
-    ctx.lineTo(x - forwardX * 5 + rightX * half, y - forwardY * 5 + rightY * half);
-    ctx.lineTo(x - forwardX * 5 - rightX * half, y - forwardY * 5 - rightY * half);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = this.colors.nose;
-    ctx.beginPath();
-    ctx.arc(tipX, tipY, 3, 0, Math.PI * 2);
-    ctx.fill();
+    drawDroneIcon(this.context, x, y, forwardX, forwardY, this.colors.text, this.colors.nose);
   }
+}
+
+/** Triángulo con la punta (morro) en naranja hacia donde apunta el dron (también en el mapa de la misión). */
+export function drawDroneIcon(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  forwardX: number,
+  forwardY: number,
+  bodyColor: string,
+  noseColor: string,
+): void {
+  const length = 11;
+  const half = 7;
+  const rightX = -forwardY;
+  const rightY = forwardX;
+  const tipX = x + forwardX * length;
+  const tipY = y + forwardY * length;
+  ctx.fillStyle = bodyColor;
+  ctx.beginPath();
+  ctx.moveTo(tipX, tipY);
+  ctx.lineTo(x - forwardX * 5 + rightX * half, y - forwardY * 5 + rightY * half);
+  ctx.lineTo(x - forwardX * 5 - rightX * half, y - forwardY * 5 - rightY * half);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = noseColor;
+  ctx.beginPath();
+  ctx.arc(tipX, tipY, 3, 0, Math.PI * 2);
+  ctx.fill();
 }

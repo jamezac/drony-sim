@@ -228,6 +228,82 @@ a {
   font-size: 15px;
 }
 
+/* --- Mapa de la misión (waypoints) --- */
+
+.mission-modal {
+  width: min(840px, 100%);
+}
+
+.mission-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 440px) minmax(220px, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+@media (width <= 720px) {
+  .mission-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mission-canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: crosshair;
+}
+
+.mission-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 14px;
+  font-size: 14px;
+}
+
+.mission-field-label {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+}
+
+.mission-field-label output {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.mission-field input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.mission-field select {
+  padding: 6px 8px;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.mission-summary,
+.mission-status {
+  margin: 0;
+  font-size: 14px;
+}
+
+.mission-status {
+  color: var(--ok);
+}
+
+.mission-status-blocked {
+  color: #ffcf5c;
+}
+
 .hud-panel {
   position: absolute;
   top: 16px;

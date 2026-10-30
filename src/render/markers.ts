@@ -1,4 +1,5 @@
 // Marcadores de las lecciones en la escena: cubos, columnas-puerta, recorridos en el suelo, postes...
+// También los de las funciones automáticas: el centro de la órbita y los puntos de una misión.
 // Se reconstruyen solo cuando cambian (al pasar de objetivo, al cruzar una puerta, al entrar en el
 // cubo), no en cada frame.
 
@@ -17,6 +18,7 @@ const COLORS = {
 };
 const GATE_HEIGHT = 5; // m: columnas altas, visibles desde lejos
 const GROUND_LIFT = 0.04; // m: para que las líneas del suelo no parpadeen con él
+const WAYPOINT_RADIUS = 0.3; // m: bola de cada punto de la misión, visible desde lejos
 
 function translucent(color: number, opacity: number): THREE.MeshBasicMaterial {
   return new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide });
@@ -89,6 +91,22 @@ function build(spec: MarkerSpec): THREE.Object3D {
       pole.castShadow = true;
       return pole;
     }
+    case 'waypoint': {
+      const color = COLORS[spec.state];
+      const y = rest + spec.altitude;
+      const group = new THREE.Group();
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(WAYPOINT_RADIUS, 16, 12), translucent(color, 0.7));
+      ball.position.set(spec.x, y, spec.z);
+      // Mástil hasta el suelo: así se ve dónde está el punto y a qué altura
+      group.add(ball, line([new THREE.Vector3(spec.x, 0, spec.z), new THREE.Vector3(spec.x, y, spec.z)], color));
+      return group;
+    }
+    case 'route':
+      return line(
+        spec.points.map((p) => new THREE.Vector3(p.x, rest + p.altitude, p.z)),
+        COLORS.pending,
+        true,
+      );
     case 'landing': {
       const group = new THREE.Group();
       group.add(line(circlePoints(spec.x, spec.z, spec.radius, GROUND_LIFT), COLORS.ground));

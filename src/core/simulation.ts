@@ -5,6 +5,7 @@
 import { Vector3 } from 'three';
 import { FlightController } from '../control/flightController';
 import { FlightStateMachine, type FlightPhase } from '../control/flightState';
+import type { MissionPlan } from '../control/mission';
 import { ModeBlender, modeParams, type FlightModeName } from '../control/modes';
 import { Battery } from '../physics/battery';
 import { resolveCollisions, type Collider, type CrashTarget } from '../physics/collisions';
@@ -90,6 +91,11 @@ export class Simulation {
     this.colliders = colliders;
   }
 
+  /** Plan de la misión de waypoints (se copia: editarlo después no cambia el que se vuela). */
+  setMissionPlan(plan: MissionPlan): void {
+    this.controller.mission.setPlan(plan);
+  }
+
   get phase(): FlightPhase {
     return this.flight.phase;
   }
@@ -117,6 +123,8 @@ export class Simulation {
         gps: modeParams(this.currentMode).positionHold,
         batteryPercent: this.battery.percent,
         rthArrived: this.controller.rthArrived,
+        missionReady: this.controller.mission.plan.waypoints.length > 0,
+        missionEnd: this.controller.missionEnd,
       },
       dt,
     );

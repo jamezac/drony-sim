@@ -111,7 +111,8 @@ export class InputManager {
 
     return {
       sticks: combineSticks(keyboard.sticks, spaceMouseSticks, gamepadSticks),
-      actions: { takeoffLand, toggleMotors, returnHome, orbit: keyboard.actions.orbit },
+      // La misión se empieza desde el mapa (ui/missionMap.ts), no con una tecla
+      actions: { takeoffLand, toggleMotors, returnHome, orbit: keyboard.actions.orbit, mission: false },
       reset: keyboard.actions.reset,
       cycleWind: keyboard.actions.cycleWind,
       toggleCamera: keyboard.actions.toggleCamera,

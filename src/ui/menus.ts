@@ -1,18 +1,19 @@
 // Menú de lecciones y pantalla de resultados (ventanas sobre la escena; el vuelo se pausa).
+// La ventana genérica (Modal) la usa también el mapa de la misión.
 
 import type { LessonDefinition } from '../training/lessons';
 import { LESSONS } from '../training/lessons';
 import type { LessonRecords } from '../training/records';
 import { formatSeconds, type Rating, type Stars } from '../training/scoring';
 
-function element(tag: string, className: string, text = ''): HTMLElement {
+export function element(tag: string, className: string, text = ''): HTMLElement {
   const result = document.createElement(tag);
   result.className = className;
   result.textContent = text;
   return result;
 }
 
-function button(text: string, secondary = false): HTMLButtonElement {
+export function button(text: string, secondary = false): HTMLButtonElement {
   const result = document.createElement('button');
   result.textContent = text;
   if (secondary) result.className = 'secondary';
@@ -24,7 +25,7 @@ function starsText(stars: Stars): string {
 }
 
 /** Ventana modal genérica: fondo oscuro que bloquea el resto de la página */
-class Modal {
+export class Modal {
   protected readonly backdrop = element('div', 'modal-backdrop');
   protected readonly panel = element('div', 'modal');
 

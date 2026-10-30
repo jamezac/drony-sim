@@ -41,7 +41,11 @@ export type MarkerSpec =
   | { kind: 'altitude'; y: number }
   | { kind: 'groundCircle'; x: number; z: number; radius: number }
   | { kind: 'pole'; x: number; z: number; height: number }
-  | { kind: 'landing'; x: number; z: number; radius: number };
+  | { kind: 'landing'; x: number; z: number; radius: number }
+  /** Punto de una misión de waypoints (fuera de las lecciones): bola a su altura con su mástil */
+  | { kind: 'waypoint'; x: number; z: number; altitude: number; state: 'next' | 'pending' | 'done' }
+  /** Recorrido de la misión en el aire, de punto a punto */
+  | { kind: 'route'; points: { x: number; z: number; altitude: number }[] };
 
 export interface GoalUpdate {
   /** 0..1 */

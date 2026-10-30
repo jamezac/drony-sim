@@ -6,10 +6,11 @@
 //   ?demo=crash  → despegue y a toda velocidad hacia delante (en la pista de obstáculos, contra el muro)
 //   ?demo=flip   → (con ?mode=acro) despegue, sube con gas a fondo y hace un flip hacia delante
 //   ?demo=orbit  → despegue, sube a ~4 m y empieza una órbita alrededor del punto de delante
+//   ?demo=mission → despegue y pulsa "volar la misión" (el recorrido lo pone main.ts, como haría el mapa)
 
 import { neutralInput, type ControlInput, type Sticks } from '../core/controlInput';
 
-export const DEMO_NAMES = ['hover', 'sticks', 'rth', 'crash', 'flip', 'orbit'] as const;
+export const DEMO_NAMES = ['hover', 'sticks', 'rth', 'crash', 'flip', 'orbit', 'mission'] as const;
 export type DemoName = (typeof DEMO_NAMES)[number];
 
 // El despegue automático tarda ~2,5 s; antes de eso mover los sticks lo cancelaría
@@ -24,6 +25,8 @@ const FLIP_DEMO_FLIP = { from: 5, to: 5.7 };
 // orbit: sube un poco (así se ve mejor el círculo del suelo) y pulsa O
 const ORBIT_DEMO_CLIMB = { from: 4, to: 5.5 };
 const ORBIT_DEMO_PRESS_SECONDS = 6.5;
+// mission: ya en el aire tras el despegue automático
+const MISSION_DEMO_PRESS_SECONDS = 4;
 
 export function parseDemoName(value: string | null): DemoName | null {
   return DEMO_NAMES.find((name) => name === value) ?? null;
@@ -35,6 +38,7 @@ export class DemoInput {
   private started = false;
   private returnPressed = false;
   private orbitPressed = false;
+  private missionPressed = false;
 
   constructor(name: DemoName) {
     this.name = name;
@@ -69,6 +73,10 @@ export class DemoInput {
         input.actions.orbit = true;
         this.orbitPressed = true;
       }
+    }
+    if (this.name === 'mission' && !this.missionPressed && this.elapsed > MISSION_DEMO_PRESS_SECONDS) {
+      input.actions.mission = true;
+      this.missionPressed = true;
     }
     if (this.name === 'rth') {
       if (this.elapsed > RTH_DEMO_FORWARD.from && this.elapsed < RTH_DEMO_FORWARD.to) input.sticks.pitch = 1;

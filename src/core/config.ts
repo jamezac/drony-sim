@@ -166,6 +166,33 @@ export const orbitConfig = {
   radiusKp: 1, // 1/s
 };
 
+export const missionConfig = {
+  // Lo que se puede planificar en el mapa (la altura máxima es la legal, limitsConfig.maxAltitude)
+  maxWaypoints: 20,
+  minAltitude: 2, // m
+  defaultAltitude: 10, // m
+  minSpeed: 1, // m/s
+  defaultSpeed: 5, // m/s
+  maxSpeed: 10, // m/s (y nunca más que la del modo)
+  // Frenado antes de cada punto: v = √(v_curva² + 2·a·d), con d lo que falta hasta el punto
+  brakeAccel: 2, // m/s²
+  // Vuelta a la línea del tramo: velocidad hacia ella por cada metro de desvío
+  crossTrackKp: 1, // 1/s
+  // Si el tramo sube o baja, la velocidad horizontal se limita para que la subida no pase de
+  // esta fracción de la del modo: así el lazo de altura (solo P) no se queda atrás
+  climbMargin: 0.7,
+  // Un punto intermedio se da por pasado a esta distancia (a lo largo del tramo) y con la altura
+  // cerca. Con velocidad de paso v, se adelanta además v·turnLead: lo que la inercia lo llevaría
+  // de largo mientras cambia de dirección
+  passDistance: 1, // m
+  turnLead: 0.8, // s
+  altitudeTolerance: 2, // m
+  // El último, como el RTH: encima, casi parado y a su altura
+  arriveRadius: 0.5, // m
+  arriveSpeed: 0.3, // m/s
+  arriveAltitude: 0.3, // m
+};
+
 // ---------------------------------------------------------------------------
 // Control: PID en cascada. Cada lazo controla al de debajo y el interior es el más rápido.
 //   posición → velocidad → aceleración/inclinación → actitud → velocidad angular → motores

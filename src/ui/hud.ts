@@ -49,6 +49,8 @@ export interface HudData {
   scenario: string;
   /** Radio (m) y velocidad (m/s) de la órbita, si está orbitando */
   orbit: { radius: number; speed: number } | null;
+  /** Punto al que va (desde 0) y total de puntos, si está volando una misión */
+  mission: { index: number; count: number } | null;
 }
 
 function element(tag: string, className: string, text = ''): HTMLElement {
@@ -103,7 +105,8 @@ export class Hud {
     const help = element(
       'p',
       'hud-help',
-      'Espacio / botón izq.: despegar o aterrizar · E: motores · H: volver a casa · O: órbita · 1-4 / botón dcho.: modo · 5: Acro · ' +
+      'Espacio / botón izq.: despegar o aterrizar · E: motores · H: volver a casa · O: órbita · M: misión · ' +
+        '1-4 / botón dcho.: modo · 5: Acro · ' +
         'W/S: altura · A/D: giro · ↑↓←→: mover · C: cámara · Q/Z: gimbal · P: miniatura · N: escenario · V: viento · ' +
         'R: reiniciar · ' +
         'G: gráfica · ',
@@ -136,7 +139,9 @@ export class Hud {
         ? ` · ${RTH_STAGE_LABELS[data.rthStage]}`
         : data.orbit
           ? ` · R ${data.orbit.radius.toFixed(0)} m · ${Math.abs(data.orbit.speed).toFixed(1)} m/s`
-          : '';
+          : data.mission
+            ? ` · punto ${data.mission.index + 1} de ${data.mission.count}`
+            : '';
     this.phase.textContent = ` · ${FLIGHT_PHASE_LABELS[data.phase]}${stage}`;
     this.gps.textContent = data.gps
       ? '● GPS: mantiene la posición'

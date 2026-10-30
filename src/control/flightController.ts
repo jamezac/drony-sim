@@ -28,6 +28,7 @@ import type { Sticks } from '../core/controlInput';
 import { headingOf, MOTOR_COUNT, tiltOf, type DroneState } from '../physics/drone';
 import { acroRate, acroThrust } from './acro';
 import type { FlightPhase } from './flightState';
+import { Mission, type MissionFinish } from './mission';
 import { mixMotors } from './mixer';
 import { Pid } from './pid';
 import type { AutoTargets } from './autoTargets';
@@ -84,6 +85,8 @@ export class FlightController {
   private readonly rth = new ReturnToHome();
   /** Órbita en curso (o la última): centro, radio y velocidad, para el HUD y la escena */
   readonly orbit = new Orbit();
+  /** Misión de waypoints: el plan que se vuela y el punto al que va */
+  readonly mission = new Mission();
   private lastPhase: FlightPhase = 'disarmed';
 
   /** Orientación objetivo del último paso (para el panel de ajuste y los tests) */
@@ -99,6 +102,11 @@ export class FlightController {
   /** El RTH ha llegado sobre el punto de despegue: toca aterrizar */
   get rthArrived(): boolean {
     return this.lastPhase === 'returning' && this.rth.stage === 'arrived';
+  }
+
+  /** La misión ha llegado al último punto: qué toca hacer ahora (null si no) */
+  get missionEnd(): MissionFinish | null {
+    return this.lastPhase === 'mission' && this.mission.finished ? this.mission.plan.finish : null;
   }
 
   reset(state: DroneState): void {
@@ -124,7 +132,7 @@ export class FlightController {
     }
 
     const flying = phase === 'flying';
-    // En las fases automáticas (despegue, RTH, aterrizaje) los sticks no mueven el dron. En la
+    // En las fases automáticas (despegue, RTH, misión, aterrizaje) los sticks no mueven el dron. En la
     // órbita, avance y lateral la ajustan (los lee la órbita) y el throttle sube y baja como siempre.
     const pilot: Sticks = flying
       ? sticks
@@ -132,15 +140,18 @@ export class FlightController {
     if (flying && !mode.selfLevel) return this.acro(state, pilot, dt);
     if (entering && phase === 'returning') this.rth.start(state);
     if (entering && phase === 'orbiting') this.orbit.start(state);
+    if (entering && phase === 'mission') this.mission.start(state);
     const auto: AutoTargets | null =
       phase === 'returning'
         ? this.rth.update(state)
         : phase === 'orbiting'
           ? this.orbit.update(state, sticks, mode.maxSpeed, dt)
-          : null;
+          : phase === 'mission'
+            ? this.mission.update(state, mode)
+            : null;
 
     // 1. Rumbo: el stick de yaw gira el objetivo (positivo = horario = rumbo decreciente).
-    //    En el RTH y la órbita, el objetivo gira hacia donde toca a la velocidad de giro del modo.
+    //    En el RTH, la órbita y la misión, el objetivo gira hacia donde toca a la velocidad de giro del modo.
     let yawRateCommand = -pilot.yaw * mode.maxYawRate;
     if (auto?.heading != null) {
       const step = clamp(wrapAngle(auto.heading - this.yawSetpoint), mode.maxYawRate * dt);
