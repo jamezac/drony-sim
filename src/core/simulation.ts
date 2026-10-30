@@ -5,10 +5,11 @@
 import { Vector3 } from 'three';
 import { FlightController } from '../control/flightController';
 import { FlightStateMachine, type FlightPhase } from '../control/flightState';
+import type { MissionPlan } from '../control/mission';
 import { ModeBlender, modeParams, type FlightModeName } from '../control/modes';
 import { Battery } from '../physics/battery';
 import { resolveCollisions, type Collider, type CrashTarget } from '../physics/collisions';
-import { copyDroneState, createDroneState, MOTOR_COUNT, type DroneState } from '../physics/drone';
+import { copyDroneState, createDroneState, MOTOR_COUNT, tiltOf, type DroneState } from '../physics/drone';
 import { stepDynamics, type AirConditions } from '../physics/dynamics';
 import { applyGroundContact, groundEffectFactor, Wind } from '../physics/environment';
 import { collisionConfig, droneConfig, simConfig, windConfig, type WindLevel } from './config';
@@ -90,6 +91,11 @@ export class Simulation {
     this.colliders = colliders;
   }
 
+  /** Plan de la misión de waypoints (se copia: editarlo después no cambia el que se vuela). */
+  setMissionPlan(plan: MissionPlan): void {
+    this.controller.mission.setPlan(plan);
+  }
+
   get phase(): FlightPhase {
     return this.flight.phase;
   }
@@ -117,6 +123,8 @@ export class Simulation {
         gps: modeParams(this.currentMode).positionHold,
         batteryPercent: this.battery.percent,
         rthArrived: this.controller.rthArrived,
+        missionReady: this.controller.mission.plan.waypoints.length > 0,
+        missionEnd: this.controller.missionEnd,
       },
       dt,
     );
@@ -137,8 +145,9 @@ export class Simulation {
     const wasAirborne = !this.state.onGround;
     const verticalImpact = Math.max(0, -this.state.velocity.y);
     const skid = Math.hypot(this.state.velocity.x, this.state.velocity.z);
+    const tilt = tiltOf(this.state.orientation);
     applyGroundContact(this.state);
-    this.detectCrash(impact.speed, impact.label, wasAirborne && this.state.onGround, verticalImpact, skid);
+    this.detectCrash(impact.speed, impact.label, wasAirborne && this.state.onGround, verticalImpact, skid, tilt);
 
     const motorsOn = this.flight.phase !== 'disarmed' && this.flight.phase !== 'crashed';
     this.battery.update(this.state.motorThrust, motorsOn, dt);
@@ -147,7 +156,8 @@ export class Simulation {
 
   /**
    * ¿Ha sido el golpe lo bastante fuerte para romper hélices? Contra un obstáculo basta un choque
-   * moderado; contra el suelo, las patas aguantan aterrizajes firmes, pero no una caída.
+   * moderado; contra el suelo, las patas aguantan aterrizajes firmes, pero no una caída, ni
+   * tocarlo muy inclinado o boca abajo (lo primero que llega al suelo son las hélices).
    */
   private detectCrash(
     obstacleSpeed: number,
@@ -155,11 +165,14 @@ export class Simulation {
     touchedGround: boolean,
     verticalImpact: number,
     skid: number,
+    tilt: number,
   ): void {
     if (this.crash) return;
-    const { obstacleCrashSpeed, groundCrashSpeed, groundSkidCrashSpeed } = collisionConfig;
+    const { obstacleCrashSpeed, groundCrashSpeed, groundSkidCrashSpeed, groundCrashTilt } = collisionConfig;
     if (obstacle && obstacleSpeed > obstacleCrashSpeed) {
       this.crashInto(obstacle, obstacleSpeed);
+    } else if (touchedGround && tilt > groundCrashTilt) {
+      this.crashInto('vuelco', verticalImpact);
     } else if (touchedGround && (verticalImpact > groundCrashSpeed || skid > groundSkidCrashSpeed)) {
       this.crashInto('suelo', Math.max(verticalImpact, skid));
     }

@@ -14,6 +14,8 @@ export interface LessonFrame {
   /** Altura sobre el suelo (m) */
   altitude: number;
   heading: number;
+  /** Componente vertical del "arriba" del dron: 1 nivelado, 0 de lado, −1 boca abajo */
+  upright: number;
   verticalSpeed: number;
   phase: FlightPhase;
   onGround: boolean;
@@ -39,7 +41,11 @@ export type MarkerSpec =
   | { kind: 'altitude'; y: number }
   | { kind: 'groundCircle'; x: number; z: number; radius: number }
   | { kind: 'pole'; x: number; z: number; height: number }
-  | { kind: 'landing'; x: number; z: number; radius: number };
+  | { kind: 'landing'; x: number; z: number; radius: number }
+  /** Punto de una misión de waypoints (fuera de las lecciones): bola a su altura con su mástil */
+  | { kind: 'waypoint'; x: number; z: number; altitude: number; state: 'next' | 'pending' | 'done' }
+  /** Recorrido de la misión en el aire, de punto a punto */
+  | { kind: 'route'; points: { x: number; z: number; altitude: number }[] };
 
 export interface GoalUpdate {
   /** 0..1 */
@@ -416,5 +422,61 @@ export class LandGoal implements Goal {
     return this.target
       ? { touchdownSpeed: this.touchdownSpeed, landingDistance: this.landingDistance }
       : { touchdownSpeed: this.touchdownSpeed };
+  }
+}
+
+/** "Arriba" del dron por encima de esto: nivelado (inclinación < ~25°) */
+const LEVEL_UPRIGHT = 0.9;
+/** "Arriba" del dron por debajo de esto: boca abajo (inclinación > ~135°) */
+const INVERTED_UPRIGHT = -0.7;
+
+/**
+ * Flip en Acro: pasar por boca abajo y volver a quedar nivelado sin bajar de una altura mínima.
+ * Mide la altura perdida desde la última vez que estuvo nivelado antes del flip hasta que se
+ * endereza: un buen flip corta el gas al empezar y lo vuelve a dar al terminar.
+ */
+export class FlipGoal implements Goal {
+  readonly instruction: string;
+  private readonly minAltitude: number;
+  private inverted = false;
+  private startAltitude = 0;
+  private altitudeLoss = 0;
+
+  constructor(minAltitude: number, instruction: string) {
+    this.minAltitude = minAltitude;
+    this.instruction = instruction;
+  }
+
+  update(frame: LessonFrame): GoalUpdate {
+    if (frame.altitude < this.minAltitude) {
+      return {
+        progress: 0,
+        done: false,
+        failed: `Has bajado de ${this.minAltitude} m. Corta el gas al empezar el flip y vuelve a darlo al terminar.`,
+      };
+    }
+    if (!this.inverted) {
+      if (frame.upright > LEVEL_UPRIGHT) this.startAltitude = frame.altitude;
+      if (frame.upright < INVERTED_UPRIGHT) this.inverted = true;
+      // Hasta boca abajo, la mitad del progreso
+      return { progress: 0.5 * clamp01((1 - frame.upright) / (1 - INVERTED_UPRIGHT)), done: false };
+    }
+    if (frame.upright > LEVEL_UPRIGHT) {
+      this.altitudeLoss = Math.max(0, this.startAltitude - frame.altitude);
+      return { progress: 1, done: true };
+    }
+    return {
+      progress: 0.5 + 0.5 * clamp01((frame.upright - INVERTED_UPRIGHT) / (LEVEL_UPRIGHT - INVERTED_UPRIGHT)),
+      done: false,
+      hint: 'Sigue con el stick a fondo hasta que vuelva a estar nivelado, y entonces suéltalo.',
+    };
+  }
+
+  markers(): MarkerSpec[] {
+    return [{ kind: 'altitude', y: this.minAltitude }];
+  }
+
+  metrics(): Record<string, number> {
+    return { flipAltitudeLoss: this.altitudeLoss };
   }
 }

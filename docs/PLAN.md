@@ -465,7 +465,7 @@ Con esto WSL y Windows comparten `localhost` en los dos sentidos.
 
 **Objetivo:** lo avanzado.
 
-**Archivos:** `control/modes.ts` (Acro), `control/flightState.ts` (Órbita, Waypoints), `ui/menus.ts`.
+**Archivos:** `control/modes.ts` y `control/acro.ts` (Acro), `control/orbit.ts` (Órbita), `control/mission.ts` y `ui/missionMap.ts` (Waypoints), `control/flightState.ts` (fases `orbiting` y `mission`).
 
 **Claves técnicas:**
 - **Acro:**
@@ -477,6 +477,27 @@ Con esto WSL y Windows comparten `localhost` en los dos sentidos.
 - **Waypoints:** se colocan puntos en un mapa y el dron vuela la misión.
 
 **Captura esperada** (`?demo=orbit`): el dron orbitando el poste y el HUD mostrando "Órbita · R 10 m".
+
+**Hecho (parte C, Waypoints):**
+- **Mapa** con la tecla `M`; el vuelo se pausa mientras está abierto. Muestra:
+  - los obstáculos del escenario, con la altura de los edificios
+  - el despegue (H), el dron y el límite de distancia
+- **Planificar:**
+  - clic para poner un punto (a la altura elegida) y clic sobre él para quitarlo
+  - botón para añadir la posición actual del dron
+  - velocidad de la misión y acción final: quedarse, RTH o aterrizar
+- **Vuelo:** seguimiento de cada tramo como un piloto automático:
+  - avanza a lo largo de la línea y corrige el desvío lateral hacia ella
+  - frena antes de cada giro, a una velocidad de paso que depende de lo cerrado que sea (((1 + cos θ)/2)²)
+  - empieza a girar antes de llegar al punto, para que la inercia no lo saque por fuera
+  - la altura cambia poco a poco a lo largo del tramo
+- **Interrumpir:** los sticks cancelan la misión, como en el RTH; `H` vuelve a casa y `Espacio` aterriza.
+- **En la escena:** bolas y mástiles de colores (pasado, siguiente, pendiente) y la ruta en el aire.
+- **Capturas:** `?demo=mission` y `?menu=mision` (el mapa).
+
+**Hecho (parte B, Órbita):** tecla `O` con el centro 10 m delante del morro; los sticks ajustan radio, velocidad/sentido y altura; prealimentación de la aceleración centrípeta y del giro; poste y círculo en la escena; captura `?demo=orbit`.
+
+**Hecho (parte A, Acro):** tecla `5` (fuera del ciclo del botón; desde Acro el botón vuelve a Normal), rates Betaflight ajustables en el panel, throttle híbrido, FPV fija al cuerpo, crash al tocar el suelo boca abajo, lección 13 ("Primer flip") y captura `?mode=acro&demo=flip`.
 
 **Hecho cuando:** puedes hacer un flip en Acro, y la órbita y los waypoints vuelan solos.
 

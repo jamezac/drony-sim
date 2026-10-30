@@ -3,6 +3,7 @@ import { neutralSticks, noActions, type ControlActions, type Sticks } from '../s
 import { simulate, Simulation } from '../src/core/simulation';
 import {
   distanceToSegment,
+  FlipGoal,
   GatesGoal,
   HoldBoxGoal,
   LandGoal,
@@ -24,6 +25,7 @@ function frame(partial: Partial<LessonFrame> = {}): LessonFrame {
     z: 0,
     altitude: 2,
     heading: 0,
+    upright: 1,
     verticalSpeed: 0,
     phase: 'flying',
     onGround: false,
@@ -165,10 +167,27 @@ describe('lecciones con la simulación real', () => {
     });
   }
 
-  it('hay 12 lecciones con identificadores únicos, encadenadas', () => {
-    expect(LESSONS).toHaveLength(12);
-    expect(new Set(LESSONS.map((l) => l.id)).size).toBe(12);
-    expect(nextLesson(LESSONS[11])).toBeNull();
+  it('hay 13 lecciones con identificadores únicos, encadenadas', () => {
+    expect(LESSONS).toHaveLength(13);
+    expect(new Set(LESSONS.map((l) => l.id)).size).toBe(13);
+    expect(nextLesson(LESSONS[12])).toBeNull();
+  });
+
+  it('flip: hay que pasar por boca abajo y volver a nivelado; mide la altura perdida', () => {
+    const goal = new FlipGoal(3, 'flip');
+    goal.update(frame({ altitude: 15, upright: 1 }));
+    // Inclinarse mucho sin llegar a boca abajo no cuenta como flip
+    expect(goal.update(frame({ altitude: 14.5, upright: 0 })).progress).toBeLessThan(0.5);
+    expect(goal.update(frame({ altitude: 14.5, upright: 0.95 })).done).toBe(false);
+    goal.update(frame({ altitude: 14, upright: -1 }));
+    expect(goal.update(frame({ altitude: 13, upright: 0.5 })).done).toBe(false);
+    expect(goal.update(frame({ altitude: 12.5, upright: 0.95 })).done).toBe(true);
+    // Desde la última vez que estuvo nivelado (14,5 m) hasta enderezarse (12,5 m)
+    expect(goal.metrics().flipAltitudeLoss).toBeCloseTo(2);
+  });
+
+  it('flip: bajar de la altura mínima hace fallar', () => {
+    expect(new FlipGoal(3, 'flip').update(frame({ altitude: 2.5, upright: -1 })).failed).toContain('3 m');
   });
 
   it('puertas con franja de altura: pasar por encima no cuenta', () => {
@@ -218,6 +237,24 @@ describe('lecciones con la simulación real', () => {
     fly(sim, run, 12);
     expect(run.status).toBe('failed');
     expect(run.failure).toContain('de la H');
+  });
+
+  it('lección 13: un flip con el gas cortado → completada con 3 estrellas', () => {
+    const { sim, run } = start('flip');
+    expect(sim.mode).toBe('acro');
+    fly(sim, run, 0.5);
+    // Stick adelante a fondo con el gas cortado hasta volver a estar nivelado, como en tests/acro
+    let inverted = false;
+    for (let t = 0; t < 2 && run.status === 'running'; t += 1 / 240) {
+      const up = frameFromSimulation(sim, neutralSticks()).upright;
+      if (up < -0.9) inverted = true;
+      if (inverted && up > 0.97) break;
+      fly(sim, run, 1 / 240, { pitch: 1, throttle: -1 });
+    }
+    fly(sim, run, 0.2);
+    expect(run.status).toBe('completed');
+    expect(run.metrics().flipAltitudeLoss).toBeLessThan(3);
+    expect(run.rating().stars).toBe(3);
   });
 
   it('lección 10: empieza en ATTI con viento y el dron deriva si no se corrige', () => {

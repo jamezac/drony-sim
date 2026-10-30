@@ -67,6 +67,9 @@ export const collisionConfig = {
   groundSkidCrashSpeed: 5, // m/s horizontal
   // Giro (rad/s) por cada m/s de impacto: el dron sale dando vueltas tras el golpe
   tumblePerSpeed: 2,
+  // Tocar el suelo más inclinado que esto (p. ej. boca abajo en Acro) es crash aunque sea despacio:
+  // las hélices golpean el suelo
+  groundCrashTilt: 60 * DEG,
 };
 
 // ---------------------------------------------------------------------------
@@ -142,6 +145,55 @@ export const rthConfig = {
 };
 
 // ---------------------------------------------------------------------------
+// Órbita (POI, "punto de interés"), como la de DJI: el dron da vueltas a un punto mirándolo
+// ---------------------------------------------------------------------------
+
+export const orbitConfig = {
+  // Al empezar, el centro se pone a esta distancia delante del morro
+  startRadius: 10, // m
+  minRadius: 3, // m
+  maxRadius: 50, // m
+  // Velocidad a lo largo del círculo al empezar (positiva = hacia la derecha del dron)
+  startSpeed: 2, // m/s
+  maxSpeed: 8, // m/s (y nunca más que la del modo)
+  // Con el stick a fondo, cuánto cambian el radio (avance/atrás) y la velocidad (lateral) por segundo
+  radiusRate: 2, // m/s
+  speedRate: 1.5, // m/s²
+  // Para girar en círculo hace falta una aceleración hacia el centro v²/R. Se limita, así que en
+  // órbitas pequeñas la velocidad máxima baja: v ≤ √(a·R)
+  maxCentripetal: 3, // m/s²
+  // Corrección del radio: velocidad hacia fuera o hacia dentro por cada metro de error
+  radiusKp: 1, // 1/s
+};
+
+export const missionConfig = {
+  // Lo que se puede planificar en el mapa (la altura máxima es la legal, limitsConfig.maxAltitude)
+  maxWaypoints: 20,
+  minAltitude: 2, // m
+  defaultAltitude: 10, // m
+  minSpeed: 1, // m/s
+  defaultSpeed: 5, // m/s
+  maxSpeed: 10, // m/s (y nunca más que la del modo)
+  // Frenado antes de cada punto: v = √(v_curva² + 2·a·d), con d lo que falta hasta el punto
+  brakeAccel: 2, // m/s²
+  // Vuelta a la línea del tramo: velocidad hacia ella por cada metro de desvío
+  crossTrackKp: 1, // 1/s
+  // Si el tramo sube o baja, la velocidad horizontal se limita para que la subida no pase de
+  // esta fracción de la del modo: así el lazo de altura (solo P) no se queda atrás
+  climbMargin: 0.7,
+  // Un punto intermedio se da por pasado a esta distancia (a lo largo del tramo) y con la altura
+  // cerca. Con velocidad de paso v, se adelanta además v·turnLead: lo que la inercia lo llevaría
+  // de largo mientras cambia de dirección
+  passDistance: 1, // m
+  turnLead: 0.8, // s
+  altitudeTolerance: 2, // m
+  // El último, como el RTH: encima, casi parado y a su altura
+  arriveRadius: 0.5, // m
+  arriveSpeed: 0.3, // m/s
+  arriveAltitude: 0.3, // m
+};
+
+// ---------------------------------------------------------------------------
 // Control: PID en cascada. Cada lazo controla al de debajo y el interior es el más rápido.
 //   posición → velocidad → aceleración/inclinación → actitud → velocidad angular → motores
 // Regla práctica: cada lazo ~3 veces más lento que el que tiene debajo.
@@ -169,7 +221,7 @@ export const controlConfig = {
 // Modos de vuelo. Valores aproximados de un DJI Mini.
 // ---------------------------------------------------------------------------
 
-export type FlightModeName = 'cine' | 'normal' | 'sport' | 'atti';
+export type FlightModeName = 'cine' | 'normal' | 'sport' | 'atti' | 'acro';
 
 export interface FlightModeParams {
   /**
@@ -178,6 +230,12 @@ export interface FlightModeParams {
    * pero sigue deslizándose con la inercia (y con el viento, en la fase 4).
    */
   positionHold: boolean;
+  /**
+   * Auto-nivelado: al soltar los sticks el dron se pone horizontal. Sin él (Acro), el stick pide
+   * VELOCIDAD DE GIRO: al soltarlo el dron se queda con la inclinación que tenga, y el throttle
+   * es directo (sin mantener la altura). Los límites de abajo no se usan en Acro (ver acroConfig).
+   */
+  selfLevel: boolean;
   maxSpeed: number; // m/s horizontal (en ATTI la limita solo la física)
   maxClimb: number; // m/s
   maxDescent: number; // m/s
@@ -191,6 +249,7 @@ export const modesConfig: Record<FlightModeName, FlightModeParams> = {
   // Muy suave y lento: primeros vuelos y tomas de vídeo
   cine: {
     positionHold: true,
+    selfLevel: true,
     maxSpeed: 6,
     maxClimb: 1.5,
     maxDescent: 1.5,
@@ -201,6 +260,7 @@ export const modesConfig: Record<FlightModeName, FlightModeParams> = {
   // El de por defecto de un DJI
   normal: {
     positionHold: true,
+    selfLevel: true,
     maxSpeed: 10,
     maxClimb: 3,
     maxDescent: 3,
@@ -211,6 +271,7 @@ export const modesConfig: Record<FlightModeName, FlightModeParams> = {
   // Rápido: más inclinación, arranca y frena más fuerte (y tarda más en pararse)
   sport: {
     positionHold: true,
+    selfLevel: true,
     maxSpeed: 16,
     maxClimb: 5,
     maxDescent: 3.5,
@@ -221,6 +282,7 @@ export const modesConfig: Record<FlightModeName, FlightModeParams> = {
   // Sin GPS: mantiene la altura (barómetro) pero no la posición
   atti: {
     positionHold: false,
+    selfLevel: true,
     maxSpeed: 10,
     maxClimb: 3,
     maxDescent: 3,
@@ -228,6 +290,38 @@ export const modesConfig: Record<FlightModeName, FlightModeParams> = {
     maxYawRate: 60 * DEG,
     maxAccel: 5,
   },
+  // Sin GPS ni auto-nivelado: el dron hace exactamente lo que dicen los sticks (rates en acroConfig).
+  // Estos límites solo se usan en las fases automáticas (despegue, aterrizaje) y al salir de Acro:
+  // los de Sport, para que pasar de Acro a Sport no los cambie.
+  acro: {
+    positionHold: false,
+    selfLevel: false,
+    maxSpeed: 16,
+    maxClimb: 5,
+    maxDescent: 3.5,
+    maxTilt: 35 * DEG,
+    maxYawRate: 130 * DEG,
+    maxAccel: 8,
+  },
+};
+
+/** Rates de un eje en Acro, con la fórmula de Betaflight (ver control/acro.ts) */
+export interface AcroAxisRates {
+  /** Pendiente en el centro: 1 = 200 °/s por unidad de stick */
+  rcRate: number;
+  /** Cuánto se acelera el giro hacia los extremos: máximo = 200·rcRate / (1 − superRate) °/s */
+  superRate: number;
+  /** Suaviza el centro sin cambiar el máximo (0 = lineal). Ojo: la entrada ya tiene su propia expo. */
+  expo: number;
+}
+
+// Acro (o "Manual"), como un dron FPV con Betaflight: los sticks piden velocidad de giro.
+export const acroConfig = {
+  // Alabeo y cabeceo: 500 °/s a fondo, un flip completo en menos de un segundo. Los pilotos de
+  // carreras usan 700-900 °/s; para aprender es mejor algo más tranquilo.
+  rollPitch: { rcRate: 1, superRate: 0.6, expo: 0 } satisfies AcroAxisRates,
+  // Giro: 333 °/s a fondo
+  yaw: { rcRate: 1, superRate: 0.4, expo: 0 } satisfies AcroAxisRates,
 };
 
 // Al cambiar de modo, los límites pasan del modo anterior al nuevo de forma gradual (exponencial
@@ -410,6 +504,9 @@ export const renderConfig = {
   // Rigidez del "muelle" que sigue al dron (1/s): más alto = sigue más pegado
   chasePositionStiffness: 6,
   chaseYawStiffness: 3,
+  // Más inclinado que esto (un flip en Acro), el rumbo del dron deja de tener sentido: al pasar
+  // por la vertical da media vuelta. La cámara deja de seguirlo hasta que vuelve a nivelarse.
+  chaseFollowMaxTilt: 60 * DEG,
   groundSize: 400, // m
   coneSpacing: 10, // m entre conos de referencia
   coneRange: 40, // m: hasta dónde llegan los conos desde el home

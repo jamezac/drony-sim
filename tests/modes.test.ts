@@ -136,7 +136,7 @@ describe('utilidades de modos', () => {
 
   it('parseModeName acepta solo modos conocidos', () => {
     expect(parseModeName('atti')).toBe('atti');
-    expect(parseModeName('acro')).toBeNull();
+    expect(parseModeName('manual')).toBeNull();
     expect(parseModeName(null)).toBeNull();
   });
 

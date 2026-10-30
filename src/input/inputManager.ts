@@ -26,7 +26,7 @@ export interface FrameInput extends ControlInput {
   spaceMouseConnected: boolean;
   /** Nombre del mando genérico conectado, o null */
   gamepadName: string | null;
-  /** Cambio de modo pedido: un modo concreto (teclas 1-4), 'next' (botón) o null */
+  /** Cambio de modo pedido: un modo concreto (teclas 1-5), 'next' (botón) o null */
   modeRequest: FlightModeName | 'next' | null;
 }
 
@@ -111,7 +111,8 @@ export class InputManager {
 
     return {
       sticks: combineSticks(keyboard.sticks, spaceMouseSticks, gamepadSticks),
-      actions: { takeoffLand, toggleMotors, returnHome },
+      // La misión se empieza desde el mapa (ui/missionMap.ts), no con una tecla
+      actions: { takeoffLand, toggleMotors, returnHome, orbit: keyboard.actions.orbit, mission: false },
       reset: keyboard.actions.reset,
       cycleWind: keyboard.actions.cycleWind,
       toggleCamera: keyboard.actions.toggleCamera,

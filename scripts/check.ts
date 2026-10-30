@@ -43,6 +43,10 @@ const PAGES: { name: string; path: string }[] = [
   { name: 'obstaculos', path: '/?scenario=obstaculos&demo=hover' },
   { name: 'crash', path: '/?scenario=obstaculos&demo=crash' },
   { name: 'lesson-obstacles', path: '/?lesson=obstaculos&demo=hover' },
+  { name: 'acro-flip', path: '/?mode=acro&demo=flip' },
+  { name: 'orbit', path: '/?demo=orbit' },
+  { name: 'mission', path: '/?demo=mission' },
+  { name: 'mission-map', path: '/?scenario=parque&demo=mission&menu=mision' },
   { name: 'devices', path: '/devices.html' },
 ];
 

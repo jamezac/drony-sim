@@ -24,4 +24,4 @@ npm run dev     # abre http://localhost:5173 en Chrome o Edge
 
 ## Estado
 
-🚧 Fase 7 (escenarios) en curso: parque, ciudad y pista de obstáculos (tecla N), colisiones y crash, y dos lecciones nuevas (12 en total, tecla L). El plan completo está en [docs/PLAN.md](docs/PLAN.md).
+✅ Fase 8 hecha: modo Acro para hacer flips (tecla 5), la lección 13 ("Primer flip"), órbita alrededor de un punto como el POI de DJI (tecla O) y misiones de waypoints: pones los puntos en un mapa (tecla M) y el dron vuela solo. Ya disponibles: parque, ciudad y pista de obstáculos (tecla N), colisiones y crash, y 13 lecciones (tecla L). El plan completo está en [docs/PLAN.md](docs/PLAN.md).

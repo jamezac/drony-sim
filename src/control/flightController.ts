@@ -10,10 +10,13 @@
 // objetivo vuelve a 0 con aceleración limitada (frenado suave) y, ya parado, se fija la posición.
 // Sin GPS (ATTI): no hay lazo de velocidad. El stick pide directamente una INCLINACIÓN; al soltarlo
 // el dron se nivela, pero nada lo frena salvo el aire: sigue deslizándose.
-// La altura se mantiene en todos los modos (en un DJI la da el barómetro, no el GPS).
+// La altura se mantiene en todos esos modos (en un DJI la da el barómetro, no el GPS).
+// Acro: solo queda el lazo interior. El stick pide velocidad de giro y el throttle, empuje
+// (ver control/acro.ts). Las fases automáticas (despegue, aterrizaje) sí se nivelan.
 
 import { Matrix4, Quaternion, Vector3 } from 'three';
 import {
+  acroConfig,
   controlConfig,
   droneConfig,
   flightConfig,
@@ -23,10 +26,14 @@ import {
 } from '../core/config';
 import type { Sticks } from '../core/controlInput';
 import { headingOf, MOTOR_COUNT, tiltOf, type DroneState } from '../physics/drone';
+import { acroRate, acroThrust } from './acro';
 import type { FlightPhase } from './flightState';
+import { Mission, type MissionFinish } from './mission';
 import { mixMotors } from './mixer';
 import { Pid } from './pid';
-import { ReturnToHome, type RthStage, type RthTargets } from './rth';
+import type { AutoTargets } from './autoTargets';
+import { Orbit } from './orbit';
+import { ReturnToHome, type RthStage } from './rth';
 
 function clamp(value: number, limit: number): number {
   return Math.max(-limit, Math.min(limit, value));
@@ -76,6 +83,10 @@ export class FlightController {
   private holding = false;
   private altitudeSetpoint: number | null = null;
   private readonly rth = new ReturnToHome();
+  /** Órbita en curso (o la última): centro, radio y velocidad, para el HUD y la escena */
+  readonly orbit = new Orbit();
+  /** Misión de waypoints: el plan que se vuela y el punto al que va */
+  readonly mission = new Mission();
   private lastPhase: FlightPhase = 'disarmed';
 
   /** Orientación objetivo del último paso (para el panel de ajuste y los tests) */
@@ -93,6 +104,11 @@ export class FlightController {
     return this.lastPhase === 'returning' && this.rth.stage === 'arrived';
   }
 
+  /** La misión ha llegado al último punto: qué toca hacer ahora (null si no) */
+  get missionEnd(): MissionFinish | null {
+    return this.lastPhase === 'mission' && this.mission.finished ? this.mission.plan.finish : null;
+  }
+
   reset(state: DroneState): void {
     for (const pid of [this.pitchRate, this.rollRate, this.yawRate, this.velocityX, this.velocityZ, this.verticalSpeed]) {
       pid.reset();
@@ -106,7 +122,7 @@ export class FlightController {
   }
 
   update(state: DroneState, phase: FlightPhase, sticks: Sticks, mode: FlightModeParams, dt: number): number[] {
-    const startingRth = phase === 'returning' && this.lastPhase !== 'returning';
+    const entering = phase !== this.lastPhase;
     this.lastPhase = phase;
     if (phase === 'disarmed' || phase === 'armed' || phase === 'crashed') {
       const idle = phase === 'armed' ? droneConfig.idleThrustFraction * droneConfig.maxThrustPerMotor : 0;
@@ -116,37 +132,52 @@ export class FlightController {
     }
 
     const flying = phase === 'flying';
-    // En las fases automáticas (despegue, RTH, aterrizaje) los sticks no mueven el dron
-    const pilot: Sticks = flying ? sticks : { throttle: 0, yaw: 0, pitch: 0, roll: 0 };
-    if (startingRth) this.rth.start(state);
-    const rth = phase === 'returning' ? this.rth.update(state) : null;
+    // En las fases automáticas (despegue, RTH, misión, aterrizaje) los sticks no mueven el dron. En la
+    // órbita, avance y lateral la ajustan (los lee la órbita) y el throttle sube y baja como siempre.
+    const pilot: Sticks = flying
+      ? sticks
+      : { throttle: phase === 'orbiting' ? sticks.throttle : 0, yaw: 0, pitch: 0, roll: 0 };
+    if (flying && !mode.selfLevel) return this.acro(state, pilot, dt);
+    if (entering && phase === 'returning') this.rth.start(state);
+    if (entering && phase === 'orbiting') this.orbit.start(state);
+    if (entering && phase === 'mission') this.mission.start(state);
+    const auto: AutoTargets | null =
+      phase === 'returning'
+        ? this.rth.update(state)
+        : phase === 'orbiting'
+          ? this.orbit.update(state, sticks, mode.maxSpeed, dt)
+          : phase === 'mission'
+            ? this.mission.update(state, mode)
+            : null;
 
     // 1. Rumbo: el stick de yaw gira el objetivo (positivo = horario = rumbo decreciente).
-    //    En el RTH, el objetivo gira hacia casa a la velocidad de giro máxima del modo.
+    //    En el RTH, la órbita y la misión, el objetivo gira hacia donde toca a la velocidad de giro del modo.
     let yawRateCommand = -pilot.yaw * mode.maxYawRate;
-    if (rth?.heading != null) {
-      const step = clamp(wrapAngle(rth.heading - this.yawSetpoint), mode.maxYawRate * dt);
+    if (auto?.heading != null) {
+      const step = clamp(wrapAngle(auto.heading - this.yawSetpoint), mode.maxYawRate * dt);
       this.yawSetpoint = wrapAngle(this.yawSetpoint + step);
-      yawRateCommand = 0;
+      // Prealimentación, igual que con el stick: si el objetivo gira (en la órbita, sin parar), se
+      // pide ese giro directamente. Si no, el lazo de actitud (solo P) iría siempre unos grados por detrás.
+      yawRateCommand = step / dt;
     } else {
       this.yawSetpoint = wrapAngle(this.yawSetpoint + yawRateCommand * dt);
     }
 
     // 2. Vertical: objetivo de velocidad → aceleración deseada (m/s²)
-    const verticalSetpoint = this.verticalSetpoint(state, phase, pilot, mode, rth);
+    const verticalSetpoint = this.verticalSetpoint(state, phase, pilot, mode, auto);
     const ay = this.verticalSpeed.update(verticalSetpoint, state.velocity.y, dt);
 
     // 3. Horizontal → aceleración deseada (m/s²). Posado no se inclina.
     let ax = 0;
     let az = 0;
     if (mode.positionHold) {
-      this.updateHorizontalSetpoint(state, pilot, mode, dt, rth);
+      this.updateHorizontalSetpoint(state, pilot, mode, dt, auto);
       if (state.onGround) {
         this.velocityX.reset();
         this.velocityZ.reset();
       } else {
-        ax = this.velocityX.update(this.velocitySetpoint.x, state.velocity.x, dt);
-        az = this.velocityZ.update(this.velocitySetpoint.z, state.velocity.z, dt);
+        ax = this.velocityX.update(this.velocitySetpoint.x, state.velocity.x, dt) + (auto?.accelX ?? 0);
+        az = this.velocityZ.update(this.velocitySetpoint.z, state.velocity.z, dt) + (auto?.accelZ ?? 0);
       }
     } else {
       if (!state.onGround) {
@@ -168,7 +199,16 @@ export class FlightController {
     // 5. Actitud → velocidad angular deseada (ejes del cuerpo)
     this.attitudeToRates(state, yawRateCommand);
 
+    this.telemetry.altitudeSetpoint = this.altitudeSetpoint === null ? null : this.altitudeSetpoint - droneConfig.restHeight;
+    this.telemetry.horizontalSpeedSetpoint = mode.positionHold ? Math.hypot(this.velocitySetpoint.x, this.velocitySetpoint.z) : null;
+    this.telemetry.desiredTilt = tiltOf(this.desiredOrientation);
+
     // 6. Velocidad angular → torque → motores
+    return this.rateLoop(state, collective, dt);
+  }
+
+  /** Lazo interior: velocidad angular deseada (rateSetpoint) → torques → empuje de cada motor. */
+  private rateLoop(state: DroneState, collective: number, dt: number): number[] {
     const omega = state.angularVelocity;
     const { inertia } = droneConfig;
     torque.set(
@@ -176,11 +216,35 @@ export class FlightController {
       inertia.y * this.yawRate.update(rateSetpoint.y, omega.y, dt),
       inertia.z * this.rollRate.update(rateSetpoint.z, omega.z, dt),
     );
-
-    this.telemetry.altitudeSetpoint = this.altitudeSetpoint === null ? null : this.altitudeSetpoint - droneConfig.restHeight;
-    this.telemetry.horizontalSpeedSetpoint = mode.positionHold ? Math.hypot(this.velocitySetpoint.x, this.velocitySetpoint.z) : null;
-    this.telemetry.desiredTilt = tiltOf(this.desiredOrientation);
     return mixMotors(collective, torque, this.motorCommands);
+  }
+
+  /**
+   * Acro: los sticks dan la velocidad de giro y el empuje total, sin más lazos por encima.
+   * Los objetivos de los demás lazos siguen al dron, para que al volver a un modo con
+   * auto-nivelado partan de cómo está ahora: se nivela, frena y fija la altura sin dar tirones.
+   */
+  private acro(state: DroneState, sticks: Sticks, dt: number): number[] {
+    const { rollPitch, yaw } = acroConfig;
+    // Ejes del cuerpo (x derecha, y arriba, z atrás): girar en +x levanta el morro y en +z levanta
+    // el lado derecho, así que "adelante" y "derecha" son giros negativos. El yaw horario, también.
+    rateSetpoint.set(
+      -acroRate(sticks.pitch, rollPitch),
+      -acroRate(sticks.yaw, yaw),
+      -acroRate(sticks.roll, rollPitch),
+    );
+
+    this.yawSetpoint = headingOf(state.orientation);
+    this.velocitySetpoint.set(state.velocity.x, 0, state.velocity.z);
+    this.holding = false;
+    this.altitudeSetpoint = null;
+    this.velocityX.reset();
+    this.velocityZ.reset();
+    this.verticalSpeed.reset();
+    this.desiredOrientation.copy(state.orientation);
+    Object.assign(this.telemetry, { altitudeSetpoint: null, horizontalSpeedSetpoint: null, desiredTilt: tiltOf(state.orientation) });
+
+    return this.rateLoop(state, acroThrust(sticks.throttle), dt);
   }
 
   /**
@@ -203,14 +267,14 @@ export class FlightController {
     sticks: Sticks,
     mode: FlightModeParams,
     dt: number,
-    rth: RthTargets | null,
+    auto: AutoTargets | null,
   ): void {
     const { position: positionGains, holdEngageSpeed } = controlConfig;
     const sticksActive = sticks.pitch !== 0 || sticks.roll !== 0;
 
-    if (rth) {
+    if (auto) {
       this.holding = false;
-      this.slewVelocitySetpoint(rth.velocityX, rth.velocityZ, mode.maxAccel * dt);
+      this.slewVelocitySetpoint(auto.velocityX, auto.velocityZ, mode.maxAccel * dt);
       return;
     }
 
@@ -285,7 +349,7 @@ export class FlightController {
     phase: FlightPhase,
     sticks: Sticks,
     mode: FlightModeParams,
-    rth: RthTargets | null,
+    auto: AutoTargets | null,
   ): number {
     const { altitude: altitudeGains } = controlConfig;
     const y = state.position.y;
@@ -293,8 +357,8 @@ export class FlightController {
     // Techo de altura (120 m): el dron no sube más aunque se pida
     const ceiling = droneConfig.restHeight + limitsConfig.maxAltitude;
 
-    if (rth) {
-      this.altitudeSetpoint = Math.min(rth.altitude, ceiling);
+    if (auto?.altitude != null) {
+      this.altitudeSetpoint = Math.min(auto.altitude, ceiling);
       const speed = (this.altitudeSetpoint - y) * altitudeGains.kp;
       return Math.max(-mode.maxDescent, Math.min(mode.maxClimb, speed));
     }

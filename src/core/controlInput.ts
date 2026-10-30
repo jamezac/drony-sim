@@ -14,6 +14,10 @@ export interface ControlActions {
   takeoffLand: boolean;
   /** Vuelta a casa (RTH): empezar o cancelar */
   returnHome: boolean;
+  /** Órbita alrededor de un punto (POI): empezar o terminar */
+  orbit: boolean;
+  /** Misión de waypoints: empezar o detener (botón del mapa) */
+  mission: boolean;
 }
 
 export interface ControlInput {
@@ -26,7 +30,7 @@ export function neutralSticks(): Sticks {
 }
 
 export function noActions(): ControlActions {
-  return { toggleMotors: false, takeoffLand: false, returnHome: false };
+  return { toggleMotors: false, takeoffLand: false, returnHome: false, orbit: false, mission: false };
 }
 
 export function neutralInput(): ControlInput {

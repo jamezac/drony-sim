@@ -4,16 +4,32 @@
 //     │                 │  ▲                               │  │  └──H──▶ volviendo a casa
 //     │              Espacio └──── se posa (aterrizaje a mano)┘  │              │ llega
 //     └──Espacio──▶ despegando (sube a 1,2 m) ──▶ en vuelo ──Espacio──▶ aterrizando ◀┘ ──▶ parado
+//                                                  ▲  │   ▲  │
+//                                                  O  O   │  mapa (M): volar misión
+//                                                  │  ▼   │  ▼
+//                                                órbita  misión (sticks: tomar el control;
+//                                                           al acabar: quedarse, RTH o aterrizar)
 //
 // - Con los motores en marcha en el suelo, mantener el throttle abajo ~1,5 s los para.
-// - Mover los sticks cancela el despegue automático y el RTH; subir el throttle cancela el aterrizaje.
+// - Mover los sticks cancela el despegue automático, el RTH y la misión; subir el throttle cancela
+//   el aterrizaje. En la órbita no: los sticks la ajustan (radio, velocidad, altura). Se sale con O.
 // - Batería: al 15 % vuelve sola a casa (una vez; se puede cancelar). Al 10 % aterriza donde
-//   esté y ya no se puede cancelar. Sin GPS (ATTI) no hay RTH.
+//   esté y ya no se puede cancelar. Sin GPS (ATTI, Acro) no hay RTH, órbita ni misión.
 
 import { batteryConfig, flightConfig } from '../core/config';
 import type { ControlActions, Sticks } from '../core/controlInput';
+import type { MissionFinish } from './mission';
 
-export type FlightPhase = 'disarmed' | 'armed' | 'takingOff' | 'flying' | 'returning' | 'landing' | 'crashed';
+export type FlightPhase =
+  | 'disarmed'
+  | 'armed'
+  | 'takingOff'
+  | 'flying'
+  | 'returning'
+  | 'orbiting'
+  | 'mission'
+  | 'landing'
+  | 'crashed';
 
 export const FLIGHT_PHASE_LABELS: Record<FlightPhase, string> = {
   disarmed: 'Motores parados',
@@ -21,6 +37,8 @@ export const FLIGHT_PHASE_LABELS: Record<FlightPhase, string> = {
   takingOff: 'Despegando',
   flying: 'En vuelo',
   returning: 'Volviendo a casa (RTH)',
+  orbiting: 'Órbita',
+  mission: 'Misión',
   landing: 'Aterrizando',
   crashed: 'Estrellado',
 };
@@ -31,11 +49,15 @@ export interface FlightStateInput {
   onGround: boolean;
   /** Altura sobre la posición de reposo (m) */
   altitude: number;
-  /** Si hay GPS (modo con mantenimiento de posición): sin él no hay RTH */
+  /** Si hay GPS (modo con mantenimiento de posición): sin él no hay RTH ni órbita */
   gps: boolean;
   batteryPercent: number;
   /** El RTH ha llegado sobre el punto de despegue */
   rthArrived: boolean;
+  /** Hay una misión planificada (al menos un punto) */
+  missionReady: boolean;
+  /** La misión ha llegado al último punto: qué hacer ahora (null mientras no) */
+  missionEnd: MissionFinish | null;
 }
 
 export class FlightStateMachine {
@@ -48,18 +70,23 @@ export class FlightStateMachine {
   /** Para no relanzar el RTH por batería si el piloto ya lo canceló */
   private lowBatteryRthDone = false;
   /**
-   * Los sticks solo cancelan el RTH si se han soltado desde que empezó. Si no, un RTH por batería
-   * que salta mientras el piloto mantiene un stick se cancelaría solo en el paso siguiente.
+   * Los sticks solo cancelan el RTH o la misión si se han soltado desde que empezaron. Si no, un RTH
+   * por batería que salta mientras el piloto mantiene un stick se cancelaría solo en el paso siguiente.
    */
-  private sticksReleasedSinceRth = false;
+  private sticksReleasedSinceAuto = false;
 
   update(input: FlightStateInput, dt: number): FlightPhase {
-    const { sticks, actions, onGround, altitude, gps, batteryPercent, rthArrived } = input;
+    const { sticks, actions, onGround, altitude, gps, batteryPercent, rthArrived, missionReady, missionEnd } = input;
     const { airborneHeight, overrideStick, manualTakeoffThrottle, disarmThrottle, disarmHoldSeconds } =
       flightConfig;
     if (altitude > airborneHeight) this.airborne = true;
     const sticksMoved = Math.max(...Object.values(sticks).map(Math.abs)) > overrideStick;
-    const inAir = this.phase === 'flying' || this.phase === 'returning' || this.phase === 'takingOff';
+    const inAir =
+      this.phase === 'flying' ||
+      this.phase === 'returning' ||
+      this.phase === 'orbiting' ||
+      this.phase === 'mission' ||
+      this.phase === 'takingOff';
 
     // Batería crítica: aterrizaje forzoso desde cualquier fase en el aire (y el que ya estuviera
     // en curso deja de poder cancelarse)
@@ -92,18 +119,39 @@ export class FlightStateMachine {
       case 'flying':
         if (actions.takeoffLand) this.enter('landing');
         else if (gps && actions.returnHome) this.enter('returning');
-        else if (gps && !this.lowBatteryRthDone && batteryPercent <= batteryConfig.rthPercent && this.airborne) {
-          this.lowBatteryRthDone = true;
-          this.enter('returning');
-        }
+        else if (this.lowBatteryReturn(gps, batteryPercent)) this.enter('returning');
+        else if (gps && actions.orbit && this.airborne && !onGround) this.enter('orbiting');
+        else if (gps && actions.mission && missionReady && this.airborne && !onGround) this.enter('mission');
         // Se ha posado tras volar, o soltó el throttle antes de llegar a despegar
         else if (onGround && (this.airborne || sticks.throttle <= 0)) this.enter('armed');
         break;
 
-      case 'returning':
-        if (!sticksMoved) this.sticksReleasedSinceRth = true;
+      case 'orbiting':
         if (actions.takeoffLand) this.enter('landing');
-        else if (actions.returnHome || (sticksMoved && this.sticksReleasedSinceRth) || !gps) this.enter('flying');
+        else if (gps && actions.returnHome) this.enter('returning');
+        else if (this.lowBatteryReturn(gps, batteryPercent)) this.enter('returning');
+        else if (gps && actions.mission && missionReady) this.enter('mission');
+        // Salir con O, o al pasar a un modo sin GPS (sin él no sabe dónde está el centro)
+        else if (actions.orbit || !gps) this.enter('flying');
+        // Bajó con el throttle hasta posarse
+        else if (onGround) this.enter('armed');
+        break;
+
+      case 'mission':
+        if (!sticksMoved) this.sticksReleasedSinceAuto = true;
+        if (actions.takeoffLand) this.enter('landing');
+        else if (gps && actions.returnHome) this.enter('returning');
+        else if (this.lowBatteryReturn(gps, batteryPercent)) this.enter('returning');
+        // Detenerla (en el mapa), tomar el control con los sticks o perder el GPS: se queda en el aire
+        else if (actions.mission || (sticksMoved && this.sticksReleasedSinceAuto) || !gps) this.enter('flying');
+        else if (missionEnd) this.enter(missionEnd === 'home' ? 'returning' : missionEnd === 'land' ? 'landing' : 'flying');
+        else if (onGround) this.enter('armed');
+        break;
+
+      case 'returning':
+        if (!sticksMoved) this.sticksReleasedSinceAuto = true;
+        if (actions.takeoffLand) this.enter('landing');
+        else if (actions.returnHome || (sticksMoved && this.sticksReleasedSinceAuto) || !gps) this.enter('flying');
         else if (rthArrived) this.enter('landing');
         break;
 
@@ -118,6 +166,13 @@ export class FlightStateMachine {
         break;
     }
     return this.phase;
+  }
+
+  /** Vuelta a casa por batería baja: una sola vez por vuelo (si el piloto la cancela, no insiste). */
+  private lowBatteryReturn(gps: boolean, batteryPercent: number): boolean {
+    if (!gps || this.lowBatteryRthDone || batteryPercent > batteryConfig.rthPercent || !this.airborne) return false;
+    this.lowBatteryRthDone = true;
+    return true;
   }
 
   /** Empieza directamente en vuelo (lecciones que arrancan en el aire). */
@@ -137,7 +192,7 @@ export class FlightStateMachine {
   }
 
   private enter(phase: FlightPhase): void {
-    if (phase === 'returning') this.sticksReleasedSinceRth = false;
+    if (phase === 'returning' || phase === 'mission') this.sticksReleasedSinceAuto = false;
     this.phase = phase;
     this.disarmTimer = 0;
     if (phase === 'armed' || phase === 'disarmed') {
